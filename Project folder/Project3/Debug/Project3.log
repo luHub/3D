@@ -1,0 +1,94 @@
+﻿  main.cpp
+c:\users\tim\documents\uni\cgpracticals\project3\trackball.h(13): warning C4305: 'initializing': truncation from 'double' to 'float'
+c:\users\tim\documents\uni\cgpracticals\project3\trackball.h(117): warning C4244: 'argument': conversion from 'double' to 'GLfloat', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\trackball.h(140): warning C4244: 'argument': conversion from 'double' to 'GLfloat', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\trackball.h(172): warning C4244: 'argument': conversion from 'double' to 'GLfloat', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(181): warning C4305: '+=': truncation from 'double' to 'float'
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(182): warning C4305: '+=': truncation from 'double' to 'float'
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(319): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(321): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(323): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(325): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(327): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(329): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(331): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(340): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(341): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(342): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(344): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(345): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(346): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(348): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(349): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(350): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(352): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(353): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(354): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(357): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(358): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(359): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(360): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(364): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(365): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(366): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(372): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(373): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(374): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(376): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(377): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(378): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(380): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(381): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(382): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(384): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(385): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(386): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(389): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(390): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(391): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(393): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(394): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(395): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(397): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(398): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(399): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(401): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(402): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(403): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(406): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(406): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(407): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(407): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(409): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(409): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(410): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(410): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(412): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(412): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(413): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(413): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(415): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(415): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(416): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(416): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(420): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(420): warning C4244: '=': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(421): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(421): warning C4244: '=': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(422): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(422): warning C4244: '=': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(424): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(424): warning C4244: '=': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(425): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(425): warning C4244: '=': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(426): warning C4244: 'argument': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(426): warning C4244: '=': conversion from 'float' to 'unsigned int', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(438): warning C4018: '<': signed/unsigned mismatch
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(449): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(463): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(547): warning C4305: '-=': truncation from 'double' to 'float'
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(552): warning C4305: '+=': truncation from 'double' to 'float'
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(557): warning C4305: '+=': truncation from 'double' to 'float'
+c:\users\tim\documents\uni\cgpracticals\project3\main.cpp(562): warning C4305: '-=': truncation from 'double' to 'float'
+  Project3.vcxproj -> C:\Users\Tim\Documents\Uni\CGPracticals\Project3\Debug\Project3.exe
+  Project3.vcxproj -> C:\Users\Tim\Documents\Uni\CGPracticals\Project3\Debug\Project3.pdb (Partial PDB)
