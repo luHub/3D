@@ -16,6 +16,10 @@ float vertices[] = {
      0.8f,  0.5f, -1.0f
 };
 
+unsigned int instances[] = {
+    2, 3
+};
+
 unsigned int indices[] = {
     0, 1, 2, 0, 1, 2
 };
@@ -59,31 +63,38 @@ void printShaderLog(int shaderId)
     }
 }
 
-void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao, GLuint vbo, GLuint ibo)
+void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao, GLuint vbo, GLuint vbo_instances, GLuint ibo)
 {
     GLint posAttrib = glGetAttribLocation(shaderProgram, "in_Position");
+    GLint instAttrib = glGetAttribLocation(shaderProgram, "in_Instance");
 
     glEnableVertexArrayAttrib(vao, posAttrib);
+    glEnableVertexArrayAttrib(vao, instAttrib);
 
     // Vertex format
     glVertexArrayAttribFormat(vao, posAttrib, 3, GL_FLOAT, GL_FALSE, 0*sizeof(float));
     glVertexArrayAttribBinding(vao, posAttrib, 0);
 
+    glVertexArrayAttribIFormat(vao, instAttrib, 1, GL_INT, 0*sizeof(int));
+    glVertexArrayAttribBinding(vao, instAttrib, 1);
+    glVertexArrayBindingDivisor(vao, 1, 1);
+
     // Bind vertex and index buffers
     glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));
+    glVertexArrayVertexBuffer(vao, 1, vbo_instances, 0, 1*sizeof(int));
     glVertexArrayElementBuffer(vao, ibo);
 
     commands[0].count = 3;
     commands[0].instanceCount = 1;
     commands[0].firstIndex = 0;
     commands[0].baseVertex = 0;
-    commands[0].baseInstance = 2;
+    commands[0].baseInstance = 0;
 
     commands[1].count = 3;
     commands[1].instanceCount = 1;
     commands[1].firstIndex = 3;
     commands[1].baseVertex = 3;
-    commands[1].baseInstance = 2;
+    commands[1].baseInstance = 1;
 }
 
 static void error_callback(int error, const char* description)
@@ -161,17 +172,19 @@ int main(void)
     glCreateVertexArrays(1, &vao);
 
     // Vertex Buffer Object
-    GLuint vbo, ibo, cbo;
+    GLuint vbo, vbo_instances, ibo, cbo;
     glCreateBuffers(1, &vbo);
+    glCreateBuffers(1, &vbo_instances);
     glCreateBuffers(1, &ibo);
     glCreateBuffers(1, &cbo);
     cout << "errors: " << glGetError() << endl;
 
     glNamedBufferData(vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glNamedBufferData(vbo_instances, sizeof(instances), instances, GL_STATIC_DRAW);
     glNamedBufferData(ibo, sizeof(indices), indices, GL_STATIC_DRAW);
 
     // Specify vertex format and bind VBO and IBO
-    specifySceneVertexAttributes(shaderProgram, vao, vbo, ibo);
+    specifySceneVertexAttributes(shaderProgram, vao, vbo, vbo_instances, ibo);
 
     glNamedBufferData(cbo, sizeof(commands), commands, GL_STATIC_DRAW);
     cout << "Created VAO: " << glGetError() << endl;
@@ -201,6 +214,7 @@ int main(void)
     glDeleteShader(shaderFS);
 
     glDeleteBuffers(1, &vbo);
+    glDeleteBuffers(1, &vbo_instances);
     glDeleteBuffers(1, &ibo);
     glDeleteBuffers(1, &cbo);
 

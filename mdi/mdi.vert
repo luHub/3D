@@ -1,14 +1,16 @@
 #version 330 core
 
-#extension GL_ARB_shader_draw_parameters : require
+//#extension GL_ARB_shader_draw_parameters : require
 
 in  vec3 in_Position;
+in  int in_Instance;
 out vec3 ex_Color;
 
 void main(void) {
    gl_Position = vec4(in_Position, 1.0);
 
-   int instance_id = gl_BaseInstanceARB;
+//   int instance_id = gl_BaseInstanceARB;
+   int instance_id = in_Instance;
 //   int instance_id = gl_InstanceID;
 //   int instance_id = gl_DrawIDARB;
 //   int instance_id = 0;
