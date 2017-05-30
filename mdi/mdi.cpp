@@ -1,11 +1,15 @@
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <cstdlib>
+#include <stdlib.h>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 using namespace std;
+
+string absPathTim = "C:/Users/Tim/Documents/Uni/CGPracticals/Project/mdi/";
 
 float vertices[] = {
     -0.3f,  0.5f, -1.0f,
@@ -37,12 +41,15 @@ DrawElementsIndirectCommand commands[2];
 GLchar* loadFile(const string &fileName)
 {
     string* result = new string();
-    ifstream file(fileName.c_str());
+    ifstream file(absPathTim + fileName.c_str());
+	if (!file.good()) {
+		cout << "File does not exist." << endl;
+	}
     if (!file) {
         std::cerr << "Cannot open file " << fileName << endl;
         throw exception();
-    }
-    string line;
+	}
+	string line;
     while (getline(file, line)) {
         *result += line;
         *result += '\n';
