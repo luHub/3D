@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <chrono>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -11,6 +12,8 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#include "objloader.hpp"
 
 using namespace std;
 
@@ -41,7 +44,7 @@ typedef  struct {
     GLuint  baseInstance;
 } DrawElementsIndirectCommand;
 
-DrawElementsIndirectCommand commands[2];
+DrawElementsIndirectCommand commands[1];
 
 GLchar* loadFile(const string &fileName)
 {
@@ -75,16 +78,22 @@ void printShaderLog(int shaderId)
     }
 }
 
-void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao, GLuint vbo, GLuint vbo_instances, GLuint ibo)
+void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao, GLuint vbo, GLuint vbo_instances, GLuint ibo, int indices_count)
 {
     GLint posAttrib = glGetAttribLocation(shaderProgram, "in_Position");
+    GLint norAttrib = glGetAttribLocation(shaderProgram, "in_Normal");
+    GLint uvAttrib = glGetAttribLocation(shaderProgram, "in_UV");
     GLint instAttrib = glGetAttribLocation(shaderProgram, "in_Instance");
 
     glEnableVertexArrayAttrib(vao, posAttrib);
+    glEnableVertexArrayAttrib(vao, norAttrib);
+    glEnableVertexArrayAttrib(vao, uvAttrib);
     glEnableVertexArrayAttrib(vao, instAttrib);
 
     // Vertex format
     glVertexArrayAttribFormat(vao, posAttrib, 3, GL_FLOAT, GL_FALSE, 0*sizeof(float));
+    glVertexArrayAttribFormat(vao, norAttrib, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float));
+    glVertexArrayAttribFormat(vao, uvAttrib, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float));
     glVertexArrayAttribBinding(vao, posAttrib, 0);
 
     glVertexArrayAttribIFormat(vao, instAttrib, 1, GL_INT, 0*sizeof(int));
@@ -92,21 +101,21 @@ void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao, GLuint vbo, 
     glVertexArrayBindingDivisor(vao, 1, 1);
 
     // Bind vertex and index buffers
-    glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, 8*sizeof(float));
     glVertexArrayVertexBuffer(vao, 1, vbo_instances, 0, 1*sizeof(int));
     glVertexArrayElementBuffer(vao, ibo);
 
-    commands[0].count = 3;
+    commands[0].count = indices_count;
     commands[0].instanceCount = 1;
     commands[0].firstIndex = 0;
     commands[0].baseVertex = 0;
     commands[0].baseInstance = 0;
 
-    commands[1].count = 3;
-    commands[1].instanceCount = 1;
-    commands[1].firstIndex = 3;
-    commands[1].baseVertex = 3;
-    commands[1].baseInstance = 1;
+//    commands[1].count = 3;
+//    commands[1].instanceCount = 1;
+//    commands[1].firstIndex = 3;
+//    commands[1].baseVertex = 3;
+//    commands[1].baseInstance = 1;
 }
 
 static void error_callback(int error, const char* description)
@@ -159,8 +168,8 @@ int main(void)
     cout << "ignore this error: " << glGetError() << endl;
     cout << "errors: " << glGetError() << endl;
 
-    const GLchar* shaderVSsrc = loadFile("mdi.vert");
-    const GLchar* shaderFSsrc = loadFile("mdi.frag");
+    const GLchar* shaderVSsrc = loadFile("./mdi.vert");
+    const GLchar* shaderFSsrc = loadFile("./mdi.frag");
 
     GLuint shaderVS = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(shaderVS, 1, &shaderVSsrc, NULL);
@@ -194,12 +203,43 @@ int main(void)
     glCreateBuffers(1, &cbo);
     cout << "errors: " << glGetError() << endl;
 
-    glNamedBufferData(vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glNamedBufferData(vbo_instances, sizeof(instances), instances, GL_STATIC_DRAW);
-    glNamedBufferData(ibo, sizeof(indices), indices, GL_STATIC_DRAW);
+    std::vector<unsigned short> indicesX;
+    std::vector<glm::vec3> verticesX;
+    std::vector<glm::vec3> normalsX;
+    std::vector<glm::vec2> uvsX;
+    loadAssImp("./meshes/fish.obj", indicesX, verticesX, uvsX, normalsX);
+
+    printf("vertices: %d, normals: %d, uvs: %d\n", verticesX.size(), normalsX.size(), uvsX.size());
+
+    float mesh_vertices[3*verticesX.size() + 3*normalsX.size() + 2*uvsX.size()] = {};
+    for (int i = 0; i < verticesX.size(); i++) {
+        mesh_vertices[8*i+0] = verticesX[i].x;
+        mesh_vertices[8*i+1] = verticesX[i].y;
+        mesh_vertices[8*i+2] = verticesX[i].z;
+
+        mesh_vertices[8*i+3] = normalsX[i].x;
+        mesh_vertices[8*i+4] = normalsX[i].y;
+        mesh_vertices[8*i+5] = normalsX[i].z;
+
+        mesh_vertices[8*i+6] = uvsX[i].x;
+        mesh_vertices[8*i+7] = uvsX[i].y;
+    }
+
+    float mesh_indices[indicesX.size()] = {};
+    for (int i = 0; i < indicesX.size(); i++) {
+        mesh_indices[i] = indicesX[i];
+    }
+
+    unsigned int mesh_instances[] = {
+        0
+    };
+
+    glNamedBufferData(vbo, sizeof(mesh_vertices), mesh_vertices, GL_STATIC_DRAW);
+    glNamedBufferData(vbo_instances, sizeof(mesh_instances), mesh_instances, GL_STATIC_DRAW);
+    glNamedBufferData(ibo, sizeof(mesh_indices), mesh_indices, GL_STATIC_DRAW);
 
     // Specify vertex format and bind VBO and IBO
-    specifySceneVertexAttributes(shaderProgram, vao, vbo, vbo_instances, ibo);
+    specifySceneVertexAttributes(shaderProgram, vao, vbo, vbo_instances, ibo, indicesX.size());
 
     glNamedBufferData(cbo, sizeof(commands), commands, GL_STATIC_DRAW);
     cout << "Created VAO: " << glGetError() << endl;
