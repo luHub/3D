@@ -3,6 +3,11 @@
 #include <string>
 #include <cstdlib>
 #include <stdlib.h>
+#include <chrono>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -12,12 +17,12 @@ using namespace std;
 string absPathTim = "C:/Users/Tim/Documents/Uni/CGPracticals/Project/mdi/";
 
 float vertices[] = {
-    -0.3f,  0.5f, -1.0f,
-    -0.8f, -0.5f, -1.0f,
-     0.2f, -0.5f, -1.0f,
-    -0.2f,  0.5f, -1.0f,
-     0.3f, -0.5f, -1.0f,
-     0.8f,  0.5f, -1.0f
+    -0.0f,  0.5f, 0.0f,
+    -0.5f, -0.5f, 0.0f,
+     0.5f, -0.5f, 0.0f,
+    -0.5f,  0.5f, 0.0f,
+     0.0f, -0.5f, 0.0f,
+     0.5f,  0.5f, 0.0f
 };
 
 unsigned int instances[] = {
@@ -41,15 +46,15 @@ DrawElementsIndirectCommand commands[2];
 GLchar* loadFile(const string &fileName)
 {
     string* result = new string();
-    ifstream file(absPathTim + fileName.c_str());
-	if (!file.good()) {
-		cout << "File does not exist." << endl;
-	}
+    ifstream file(fileName.c_str());
+    if (!file.good()) {
+        cout << "File does not exist." << endl;
+    }
     if (!file) {
         std::cerr << "Cannot open file " << fileName << endl;
         throw exception();
-	}
-	string line;
+    }
+    string line;
     while (getline(file, line)) {
         *result += line;
         *result += '\n';
@@ -132,6 +137,9 @@ int main(void)
 
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
+    const float windowWidth = 500.0f;
+    const float windowHeight = 500.0f;
+
     // Create a windowed mode window and its OpenGL context
     window = glfwCreateWindow(500, 500, "MDI", NULL, NULL);
     if (!window)
@@ -202,9 +210,43 @@ int main(void)
 
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cbo);
 
+//    glm::mat4 trans;
+//    trans = glm::rotate(trans, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    GLint uniTrans = glGetUniformLocation(shaderProgram, "world");
+    GLint uniView = glGetUniformLocation(shaderProgram, "view");
+    GLint uniProj = glGetUniformLocation(shaderProgram, "proj");
+
+//    glm::vec4 result = trans * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+//    printf("glm test: %f, %f, %f\n", result.x, result.y, result.z);
+
+//    glProgramUniformMatrix4fv(shaderProgram, uniTrans, 1, GL_FALSE, glm::value_ptr(trans));
+
+    auto t_start = std::chrono::high_resolution_clock::now();
+
+    // Projection matrix
+    glm::mat4 proj = glm::perspective(glm::radians(45.0f), windowWidth / windowHeight, 1.0f, 10.0f);
+    glProgramUniformMatrix4fv(shaderProgram, uniProj, 1, GL_FALSE, glm::value_ptr(proj));
+
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
+        auto t_now = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
+
+        // View matrix
+        glm::mat4 view = glm::lookAt(
+            glm::vec3(1.2f, 1.2f, 1.2f),
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 0.0f, 1.0f)
+        );
+        glProgramUniformMatrix4fv(shaderProgram, uniView, 1, GL_FALSE, glm::value_ptr(view));
+
+        // World matrix
+        glm::mat4 trans;
+        trans = glm::rotate(trans, time * glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glProgramUniformMatrix4fv(shaderProgram, uniTrans, 1, GL_FALSE, glm::value_ptr(trans));
+
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
