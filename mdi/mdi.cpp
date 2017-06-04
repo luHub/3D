@@ -207,7 +207,7 @@ int main(void)
     std::vector<glm::vec3> verticesX;
     std::vector<glm::vec3> normalsX;
     std::vector<glm::vec2> uvsX;
-    loadAssImp("./meshes/cube.obj", indicesX, verticesX, uvsX, normalsX);
+    loadAssImp("./meshes/fish.obj", indicesX, verticesX, uvsX, normalsX);
 
     printf("vertices: %d, normals: %d, uvs: %d\n", verticesX.size(), normalsX.size(), uvsX.size());
 
