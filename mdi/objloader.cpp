@@ -112,7 +112,7 @@ bool loadOBJ(
 }
 
 
-//#ifdef USE_ASSIMP // don't use this #define, it's only for me (it AssImp fails to compile on your machine, at least all the other tutorials still work)
+#ifdef USE_ASSIMP // don't use this #define, it's only for me (it AssImp fails to compile on your machine, at least all the other tutorials still work)
 
 // Include AssImp
 #include <assimp/Importer.hpp>      // C++ importer interface
@@ -172,4 +172,4 @@ bool loadAssImp(
 
 }
 
-//#endif
+#endif
