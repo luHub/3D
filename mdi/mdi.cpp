@@ -12,9 +12,13 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-using namespace std;
+#define TINYGLTF_LOADER_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#include "tiny_gltf_loader.h"
 
-string absPathTim = "C:/Users/Tim/Documents/Uni/CGPracticals/Project/mdi/";
+using namespace tinygltf;
+
+using namespace std;
 
 float vertices[] = {
     -0.0f,  0.5f, 0.0f,
@@ -42,6 +46,70 @@ typedef  struct {
 } DrawElementsIndirectCommand;
 
 DrawElementsIndirectCommand commands[2];
+
+// From https://blog.nobel-joergensen.com/2013/02/17/debugging-opengl-part-2-using-gldebugmessagecallback/
+void APIENTRY openglCallbackFunction(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+    cout << "[";
+    switch (severity) {
+    case GL_DEBUG_SEVERITY_LOW:
+        cout << "LOW";
+        break;
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        cout << "MEDIUM";
+        break;
+    case GL_DEBUG_SEVERITY_HIGH:
+        cout << "HIGH";
+        break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        cout << "NOTIFICATION";
+        break;
+    }
+
+    cout << "] [";
+    switch (source) {
+        case GL_DEBUG_SOURCE_API:
+            cout << "API";
+            break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+            cout << "WINDOW_SYSTEM";
+            break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER:
+            cout << "SHADER_COMPILER";
+            break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY:
+            cout << "THIRD_PARTY";
+            break;
+        case GL_DEBUG_SOURCE_APPLICATION:
+            cout << "APPLICATION";
+            break;
+        case GL_DEBUG_SOURCE_OTHER:
+            cout << "OTHER";
+            break;
+    }
+    cout << ":";
+
+    switch (type) {
+    case GL_DEBUG_TYPE_ERROR:
+        cout << "ERROR";
+        break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        cout << "DEPRECATED_BEHAVIOR";
+        break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        cout << "UNDEFINED_BEHAVIOR";
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        cout << "PORTABILITY";
+        break;
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        cout << "PERFORMANCE";
+        break;
+    case GL_DEBUG_TYPE_OTHER:
+        cout << "OTHER";
+        break;
+    }
+    cout << "] " << message << endl;
+}
 
 GLchar* loadFile(const string &fileName)
 {
@@ -119,8 +187,17 @@ static void window_close_callback(GLFWwindow* window)
     cout << "Closing window" << endl;
 }
 
-int main(void)
+static void loadMesh(tinygltf::Scene &scene, GLuint progId) {
+    cout << "Loading mesh..." << endl;
+}
+
+int main(int argc, char *argv[])
 {
+    if (argc != 2) {
+        cout << "Usage: ./mdi path/to/mesh.gltf" << endl;
+        exit(EXIT_FAILURE);
+    }
+
     GLFWwindow* window;
 
     glfwSetErrorCallback(error_callback);
@@ -134,6 +211,9 @@ int main(void)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+
+    // Debug messages
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
@@ -159,6 +239,19 @@ int main(void)
     cout << "ignore this error: " << glGetError() << endl;
     cout << "errors: " << glGetError() << endl;
 
+    //////////////////////////////////////////////////////////////////////
+    // Debug callback
+    //////////////////////////////////////////////////////////////////////
+
+    cout << "Register OpenGL debug callback " << endl;
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(openglCallbackFunction, nullptr);
+    GLuint unusedIds = 0;
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, &unusedIds, true);
+    cout << "errors: " << glGetError() << endl;
+
+    //////////////////////////////////////////////////////////////////////
+
     const GLchar* shaderVSsrc = loadFile("mdi.vert");
     const GLchar* shaderFSsrc = loadFile("mdi.frag");
 
@@ -166,13 +259,11 @@ int main(void)
     glShaderSource(shaderVS, 1, &shaderVSsrc, NULL);
     glCompileShader(shaderVS);
     printShaderLog(shaderVS);
-    cout << "Created VS: " << glGetError() << endl;
 
     GLuint shaderFS = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(shaderFS, 1, &shaderFSsrc, NULL);
     glCompileShader(shaderFS);
     printShaderLog(shaderFS);
-    cout << "Created FS: " << glGetError() << endl;
 
     // Create program
     GLuint shaderProgram = glCreateProgram();
@@ -180,7 +271,6 @@ int main(void)
     glAttachShader(shaderProgram, shaderFS);
     glBindFragDataLocation(shaderProgram, 0, "out_Color");
     glLinkProgram(shaderProgram);
-    cout << "Created program: " << glGetError() << endl;
 
     // Vertex Array Objects
     GLuint vao;
@@ -192,7 +282,27 @@ int main(void)
     glCreateBuffers(1, &vbo_instances);
     glCreateBuffers(1, &ibo);
     glCreateBuffers(1, &cbo);
-    cout << "errors: " << glGetError() << endl;
+
+    //////////////////////////////////////////////////////////////////////
+
+    Scene scene;
+    TinyGLTFLoader loader;
+    string err;
+    bool ret = loader.LoadASCIIFromFile(&scene, &err, argv[1]);
+
+    if (!err.empty()) {
+        cout << "Error: " << err << endl;
+    }
+
+    if (!ret) {
+        cout << "Error: failed to parse .gltf model" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    cout << "# of meshes = " << scene.meshes.size() << endl;
+    loadMesh(scene, shaderProgram);
+
+    //////////////////////////////////////////////////////////////////////
 
     glNamedBufferData(vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
     glNamedBufferData(vbo_instances, sizeof(instances), instances, GL_STATIC_DRAW);
@@ -202,11 +312,9 @@ int main(void)
     specifySceneVertexAttributes(shaderProgram, vao, vbo, vbo_instances, ibo);
 
     glNamedBufferData(cbo, sizeof(commands), commands, GL_STATIC_DRAW);
-    cout << "Created VAO: " << glGetError() << endl;
 
     glBindVertexArray(vao);
     glUseProgram(shaderProgram);
-    cout << "Running: " << glGetError() << endl;
 
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cbo);
 
