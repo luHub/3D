@@ -1,36 +1,31 @@
 //
 // Tiny glTF loader.
 //
-// Copyright (c) 2015-2016, Syoyo Fujita and many contributors.
-// All rights reserved.
-// (Licensed under 2-clause BSD liecense)
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
+// The MIT License (MIT)
 //
-// 1. Redistributions of source code must retain the above copyright notice,
-// this
-//    list of conditions and the following disclaimer.
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution.
+// Copyright (c) 2015 - 2016 Syoyo Fujita and many contributors.
 //
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
-// FOR
-// ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES
-// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 // Version:
+//  - v0.9.5 Support parsing `extras` parameter.
 //  - v0.9.4 Support parsing `shader`, `program` and `tecnique` thanks to
 //  @lukesanantonio
 //  - v0.9.3 Support binary glTF
@@ -38,7 +33,7 @@
 //  - v0.9.1 Support loading glTF asset from memory
 //  - v0.9.0 Initial
 //
-// Tiny glTF loader is using following libraries:
+// Tiny glTF loader is using following third party libraries:
 //
 //  - picojson: C++ JSON library.
 //  - base64: base64 decode/encode library.
@@ -47,6 +42,8 @@
 #ifndef TINY_GLTF_LOADER_H_
 #define TINY_GLTF_LOADER_H_
 
+#include <cassert>
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
@@ -140,21 +137,144 @@ namespace tinygltf {
 #define TINYGLTF_SHADER_TYPE_VERTEX_SHADER (35633)
 #define TINYGLTF_SHADER_TYPE_FRAGMENT_SHADER (35632)
 
-// This is an unofficial flag that allows to know if the flag needs to be
-// enabled or not for this texture. glTF spec considers it as false by
-// default but most of the renderers enable it.
-// Unknown will be considered the same as false, and means that the flag is not given
-// in the file
-enum FlipY {
-  FLIPY_UNKNOWN,
-  FLIPY_FALSE,
-  FLIPY_TRUE
+typedef enum {
+  NULL_TYPE = 0,
+  NUMBER_TYPE = 1,
+  INT_TYPE = 2,
+  BOOL_TYPE = 3,
+  STRING_TYPE = 4,
+  ARRAY_TYPE = 5,
+  BINARY_TYPE = 6,
+  OBJECT_TYPE = 7
+} Type;
+
+// Simple class to represent JSON object
+class Value {
+ public:
+  typedef std::vector<Value> Array;
+  typedef std::map<std::string, Value> Object;
+
+  Value() : type_(NULL_TYPE) {}
+
+  explicit Value(bool b) : type_(BOOL_TYPE) { boolean_value_ = b; }
+  explicit Value(int i) : type_(INT_TYPE) { int_value_ = i; }
+  explicit Value(double n) : type_(NUMBER_TYPE) { number_value_ = n; }
+  explicit Value(const std::string &s) : type_(STRING_TYPE) {
+    string_value_ = s;
+  }
+  explicit Value(const unsigned char *p, size_t n) : type_(BINARY_TYPE) {
+    binary_value_.resize(n);
+    memcpy(binary_value_.data(), p, n);
+  }
+  explicit Value(const Array &a) : type_(ARRAY_TYPE) {
+    array_value_ = Array(a);
+  }
+  explicit Value(const Object &o) : type_(OBJECT_TYPE) {
+    object_value_ = Object(o);
+  }
+
+  char Type() const { return static_cast<const char>(type_); }
+
+  bool IsBool() const { return (type_ == BOOL_TYPE); }
+
+  bool IsInt() const { return (type_ == INT_TYPE); }
+
+  bool IsNumber() const { return (type_ == NUMBER_TYPE); }
+
+  bool IsString() const { return (type_ == STRING_TYPE); }
+
+  bool IsBinary() const { return (type_ == BINARY_TYPE); }
+
+  bool IsArray() const { return (type_ == ARRAY_TYPE); }
+
+  bool IsObject() const { return (type_ == OBJECT_TYPE); }
+
+  // Accessor
+  template <typename T>
+  const T &Get() const;
+  template <typename T>
+  T &Get();
+
+  // Lookup value from an array
+  inline const Value &Get(int idx) const {
+    assert(IsArray());
+    assert(idx >= 0);
+    return (static_cast<size_t>(idx) < array_value_.size())
+               ? array_value_[static_cast<size_t>(idx)]
+               : null_value_;
+  }
+
+  // Lookup value from a key-value pair
+  inline const Value &Get(const std::string &key) const {
+    assert(IsObject());
+    Object::const_iterator it = object_value_.find(key);
+    return (it != object_value_.end()) ? it->second : null_value_;
+  }
+
+  size_t ArrayLen() const {
+    if (!IsArray()) return 0;
+    return array_value_.size();
+  }
+
+  // Valid only for object type.
+  bool Has(const std::string &key) const {
+    if (!IsObject()) return false;
+    Object::const_iterator it = object_value_.find(key);
+    return (it != object_value_.end()) ? true : false;
+  }
+
+  // List keys
+  std::vector<std::string> Keys() const {
+    std::vector<std::string> keys;
+    if (!IsObject()) return keys;  // empty
+
+    for (Object::const_iterator it = object_value_.begin();
+         it != object_value_.end(); ++it) {
+      keys.push_back(it->first);
+    }
+
+    return keys;
+  }
+
+ protected:
+  int type_;
+
+  int int_value_;
+  double number_value_;
+  std::string string_value_;
+  std::vector<unsigned char> binary_value_;
+  Array array_value_;
+  Object object_value_;
+  bool boolean_value_;
+  char pad[3];
+
+  int pad0;
+
+ private:
+  static Value null_value_; 
 };
+
+#define TINYGLTF_VALUE_GET(ctype, var)            \
+  template <>                                     \
+  inline const ctype &Value::Get<ctype>() const { \
+    return var;                                   \
+  }                                               \
+  template <>                                     \
+  inline ctype &Value::Get<ctype>() {             \
+    return var;                                   \
+  }
+TINYGLTF_VALUE_GET(bool, boolean_value_)
+TINYGLTF_VALUE_GET(double, number_value_)
+TINYGLTF_VALUE_GET(int, int_value_)
+TINYGLTF_VALUE_GET(std::string, string_value_)
+TINYGLTF_VALUE_GET(std::vector<unsigned char>, binary_value_)
+TINYGLTF_VALUE_GET(Value::Array, array_value_)
+TINYGLTF_VALUE_GET(Value::Object, object_value_)
+#undef TINYGLTF_VALUE_GET
 
 typedef struct {
   std::string string_value;
   std::vector<double> number_array;
-  std::map<std::string, std::string> json_value;
 } Parameter;
 
 typedef std::map<std::string, Parameter> ParameterMap;
@@ -163,12 +283,14 @@ typedef struct {
   std::string sampler;
   std::string target_id;
   std::string target_path;
+  Value extras;
 } AnimationChannel;
 
 typedef struct {
   std::string input;
   std::string interpolation;
   std::string output;
+  Value extras;
 } AnimationSampler;
 
 typedef struct {
@@ -176,14 +298,8 @@ typedef struct {
   std::vector<AnimationChannel> channels;
   std::map<std::string, AnimationSampler> samplers;
   ParameterMap parameters;
+  Value extras;
 } Animation;
-
-typedef struct {
-  std::string name;
-  std::vector<double> bindShapeMatrix;
-  std::string inverseBindMatrices;
-  std::vector<std::string> jointNames;
-} Skin;
 
 typedef struct {
   std::string name;
@@ -193,6 +309,7 @@ typedef struct {
   int wrapT;
   int wrapR;  // TinyGLTF extension
   int pad0;
+  Value extras;
 } Sampler;
 
 typedef struct {
@@ -202,44 +319,31 @@ typedef struct {
   int component;
   int pad0;
   std::vector<unsigned char> image;
+
   std::string bufferView;  // KHR_binary_glTF extenstion.
   std::string mimeType;    // KHR_binary_glTF extenstion.
-  std::string path;
+
+  Value extras;
 } Image;
 
 typedef struct {
   int format;
   int internalFormat;
-  FlipY flipY;
   std::string sampler;  // Required
   std::string source;   // Required
   int target;
   int type;
   std::string name;
+  Value extras;
 } Texture;
 
 typedef struct {
   std::string name;
   std::string technique;
   ParameterMap values;
+
+  Value extras;
 } Material;
-
-//FIXME: the spec is not consistant with the official samples for this king of materials
-// so this function will need some updates
-typedef struct {
-  std::string name;
-  bool doubleSided;
-  std::string technique;
-  bool transparent;
-  ParameterMap values;
-} KHRCommonMaterial;
-
-typedef struct {
-  std::string name;
-  std::string materialModel;
-  ParameterMap values;
-  ParameterMap extras;
-} PBRMaterial;
 
 typedef struct {
   std::string name;
@@ -248,6 +352,7 @@ typedef struct {
   size_t byteLength;   // default: 0
   int target;
   int pad0;
+  Value extras;
 } BufferView;
 
 typedef struct {
@@ -262,6 +367,7 @@ typedef struct {
   int pad1;
   std::vector<double> minValues;  // Optional
   std::vector<double> maxValues;  // Optional
+  Value extras;
 } Accessor;
 
 class Camera {
@@ -289,11 +395,14 @@ typedef struct {
   std::string indices;   // The ID of the accessor that contains the indices.
   int mode;              // one of TINYGLTF_MODE_***
   int pad0;
+
+  Value extras;  // "extra" property
 } Primitive;
 
 typedef struct {
   std::string name;
   std::vector<Primitive> primitives;
+  Value extras;
 } Mesh;
 
 class Node {
@@ -304,20 +413,20 @@ class Node {
   std::string camera;  // camera object referenced by this node.
 
   std::string name;
-  std::string jointName;
-  std::string skin;
   std::vector<std::string> children;
   std::vector<double> rotation;     // length must be 0 or 4
   std::vector<double> scale;        // length must be 0 or 3
   std::vector<double> translation;  // length must be 0 or 3
   std::vector<double> matrix;       // length must be 0 or 16
   std::vector<std::string> meshes;
-  std::vector<std::string> skeletons;
+
+  Value extras;
 };
 
 typedef struct {
   std::string name;
   std::vector<unsigned char> data;
+  Value extras;
 } Buffer;
 
 typedef struct {
@@ -325,6 +434,8 @@ typedef struct {
   int type;
   int pad0;
   std::vector<unsigned char> source;
+
+  Value extras;
 } Shader;
 
 typedef struct {
@@ -332,6 +443,8 @@ typedef struct {
   std::string vertexShader;
   std::string fragmentShader;
   std::vector<std::string> attributes;
+
+  Value extras;
 } Program;
 
 typedef struct {
@@ -350,6 +463,8 @@ typedef struct {
   std::map<std::string, TechniqueParameter> parameters;
   std::map<std::string, std::string> attributes;
   std::map<std::string, std::string> uniforms;
+
+  Value extras;
 } Technique;
 
 typedef struct {
@@ -359,6 +474,7 @@ typedef struct {
   std::string profile_version;
   bool premultipliedAlpha;
   char pad[7];
+  Value extras;
 } Asset;
 
 class Scene {
@@ -371,14 +487,11 @@ class Scene {
   std::map<std::string, Buffer> buffers;
   std::map<std::string, BufferView> bufferViews;
   std::map<std::string, Material> materials;
-  std::map<std::string, KHRCommonMaterial> commonMaterials;
-  std::map<std::string, PBRMaterial> pbrMaterials;
   std::map<std::string, Mesh> meshes;
   std::map<std::string, Node> nodes;
   std::map<std::string, Texture> textures;
   std::map<std::string, Image> images;
   std::map<std::string, Shader> shaders;
-  std::map<std::string, Skin> skins;
   std::map<std::string, Program> programs;
   std::map<std::string, Technique> techniques;
   std::map<std::string, Sampler> samplers;
@@ -387,10 +500,11 @@ class Scene {
   std::string defaultScene;
 
   Asset asset;
+
+  Value extras;
 };
 
-enum SectionCheck
-{
+enum SectionCheck {
   NO_REQUIRE = 0x00,
   REQUIRE_SCENE = 0x01,
   REQUIRE_SCENES = 0x02,
@@ -453,13 +567,15 @@ class TinyGLTFLoader {
 
 }  // namespace tinygltf
 
+#endif  // TINY_GLTF_LOADER_H_
+
 #ifdef TINYGLTF_LOADER_IMPLEMENTATION
 #include <algorithm>
-#include <cassert>
+//#include <cassert>
 #include <fstream>
 #include <sstream>
 
-#ifdef TINYGLTF_APPLY_CLANG_WEVERYTHING
+#ifdef __clang__
 // Disable some warnings for external files.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wfloat-equal"
@@ -471,11 +587,21 @@ class TinyGLTFLoader {
 #pragma clang diagnostic ignored "-Wreserved-id-macro"
 #pragma clang diagnostic ignored "-Wdisabled-macro-expansion"
 #pragma clang diagnostic ignored "-Wpadded"
+#ifdef __APPLE__
+#if __clang_major__ >= 8 && __clang_minor__ >= 1
+#pragma clang diagnostic ignored "-Wcomma"
+#endif
+#else  // __APPLE__
+#if (__clang_major__ >= 4) || (__clang_major__ >= 3 && __clang_minor__ > 8)
+#pragma clang diagnostic ignored "-Wcomma"
+#endif
+#endif  // __APPLE__
 #endif
 
+#define PICOJSON_USE_INT64
 #include "./picojson.h"
 #include "./stb_image.h"
-#ifdef TINYGLTF_APPLY_CLANG_WEVERYTHING
+#ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
@@ -647,7 +773,7 @@ std::string base64_decode(std::string const &s);
 
 */
 
-#ifdef TINYGLTF_APPLY_CLANG_WEVERYTHING
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
 #pragma clang diagnostic ignored "-Wglobal-constructors"
@@ -708,7 +834,7 @@ std::string base64_decode(std::string const &encoded_string) {
 
   return ret;
 }
-#ifdef TINYGLTF_APPLY_CLANG_WEVERYTHING
+#ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
@@ -779,6 +905,7 @@ static bool LoadImageData(Image *image, std::string *err, int req_width,
   }
 
   if (w < 1 || h < 1) {
+    free(data);
     if (err) {
       (*err) += "Unknown image format.\n";
     }
@@ -787,6 +914,7 @@ static bool LoadImageData(Image *image, std::string *err, int req_width,
 
   if (req_width > 0) {
     if (req_width != w) {
+      free(data);
       if (err) {
         (*err) += "Image width mismatch.\n";
       }
@@ -796,6 +924,7 @@ static bool LoadImageData(Image *image, std::string *err, int req_width,
 
   if (req_height > 0) {
     if (req_height != h) {
+      free(data);
       if (err) {
         (*err) += "Image height mismatch.\n";
       }
@@ -808,6 +937,8 @@ static bool LoadImageData(Image *image, std::string *err, int req_width,
   image->component = comp;
   image->image.resize(static_cast<size_t>(w * h * comp));
   std::copy(data, data + w * h * comp, image->image.begin());
+
+  free(data);
 
   return true;
 }
@@ -882,6 +1013,50 @@ static bool DecodeDataURI(std::vector<unsigned char> *out,
   return true;
 }
 
+static void ParseObjectProperty(Value *ret, const picojson::object &o) {
+  tinygltf::Value::Object vo;
+  picojson::object::const_iterator it(o.begin());
+  picojson::object::const_iterator itEnd(o.end());
+
+  for (; it != itEnd; it++) {
+    picojson::value v = it->second;
+
+    if (v.is<bool>()) {
+      vo[it->first] = tinygltf::Value(v.get<bool>());
+    } else if (v.is<double>()) {
+      vo[it->first] = tinygltf::Value(v.get<double>());
+    } else if (v.is<int64_t>()) {
+      vo[it->first] =
+          tinygltf::Value(static_cast<int>(v.get<int64_t>()));  // truncate
+    } else if (v.is<std::string>()) {
+      vo[it->first] = tinygltf::Value(v.get<std::string>());
+    } else if (v.is<picojson::object>()) {
+      tinygltf::Value child_value;
+      ParseObjectProperty(&child_value, v.get<picojson::object>());
+      vo[it->first] = child_value;
+    }
+    // TODO(syoyo) binary, array
+  }
+
+  (*ret) = tinygltf::Value(vo);
+}
+
+static bool ParseExtrasProperty(Value *ret, const picojson::object &o) {
+  picojson::object::const_iterator it = o.find("extras");
+  if (it == o.end()) {
+    return false;
+  }
+
+  // FIXME(syoyo) Currently we only support `object` type for extras property.
+  if (!it->second.is<picojson::object>()) {
+    return false;
+  }
+
+  ParseObjectProperty(ret, it->second.get<picojson::object>());
+
+  return true;
+}
+
 static bool ParseBooleanProperty(bool *ret, std::string *err,
                                  const picojson::object &o,
                                  const std::string &property, bool required) {
@@ -940,41 +1115,6 @@ static bool ParseNumberProperty(double *ret, std::string *err,
   return true;
 }
 
-static bool ParseJSONProperty(std::map<std::string, std::string> *ret, std::string *err,
-                              const picojson::object &o,
-                              const std::string &property,
-                              bool required)
-{
-  picojson::object::const_iterator it = o.find(property);
-  if(it == o.end())
-  {
-    if (required) {
-      if(err) {
-        (*err) += "'" + property + "' property is missing. \n'";
-      }
-    }
-    return false;
-  }
-
-  if(!it->second.is<picojson::object>()) {
-    if (required) {
-      if (err) {
-        (*err) += "'" + property + "' property is not a JSON object.\n";
-      }
-    }
-    return false;
-  }
-
-  ret->clear();
-  const picojson::object &obj = it->second.get<picojson::object>();
-  picojson::object::const_iterator it2(obj.begin());
-  picojson::object::const_iterator itEnd(obj.end());
-  for (; it2 != itEnd; it2++) {
-    ret->insert(std::pair<std::string, std::string>(it2->first, it2->second.get<std::string>()));
-  }
-
-  return true;
-}
 static bool ParseNumberArrayProperty(std::vector<double> *ret, std::string *err,
                                      const picojson::object &o,
                                      const std::string &property,
@@ -1015,14 +1155,20 @@ static bool ParseNumberArrayProperty(std::vector<double> *ret, std::string *err,
   return true;
 }
 
-static bool ParseStringProperty(std::string *ret, std::string *err,
-                                const picojson::object &o,
-                                const std::string &property, bool required) {
+static bool ParseStringProperty(
+    std::string *ret, std::string *err, const picojson::object &o,
+    const std::string &property, bool required,
+    const std::string &parent_node = std::string()) {
   picojson::object::const_iterator it = o.find(property);
   if (it == o.end()) {
     if (required) {
       if (err) {
-        (*err) += "'" + property + "' property is missing.\n";
+        (*err) += "'" + property + "' property is missing";
+        if (parent_node.empty()) {
+          (*err) += ".\n";
+        } else {
+          (*err) += " in `" + parent_node + "'.\n";
+        }
       }
     }
     return false;
@@ -1291,16 +1437,11 @@ static bool ParseImage(Image *image, std::string *err,
       }
     } else {
       // Assume external file
-
-      // Keep texture path (for textures that cannot be decoded)
-      image->path = uri;
-
-      // If the image cannot be loaded (due to unhandled file format), keep uri.
       if (!LoadExternalFile(&img, err, uri, basedir, 0, false)) {
         if (err) {
           (*err) += "Failed to load external 'uri'. for image parameter\n";
         }
-        return true; // returning true since uri is valid even if the image has not been loaded.
+        return false;
       }
       if (img.empty()) {
         if (err) {
@@ -1335,17 +1476,6 @@ static bool ParseTexture(Texture *texture, std::string *err,
 
   double internalFormat = TINYGLTF_TEXTURE_FORMAT_RGBA;
   ParseNumberProperty(&internalFormat, err, o, "internalFormat", false);
-
-  bool flipY = false;
-  bool propertyFound = ParseBooleanProperty(&flipY, err, o, "flipY", false);
-
-  if(propertyFound)
-  {
-    if(flipY)
-      texture->flipY = FLIPY_TRUE;
-    else
-      texture->flipY = FLIPY_FALSE;
-  }
 
   double target = TINYGLTF_TEXTURE_TARGET_TEXTURE2D;
   ParseNumberProperty(&target, err, o, "target", false);
@@ -1569,12 +1699,15 @@ static bool ParseAccessor(Accessor *accessor, std::string *err,
     }
   }
 
+  ParseExtrasProperty(&(accessor->extras), o);
+
   return true;
 }
 
 static bool ParsePrimitive(Primitive *primitive, std::string *err,
                            const picojson::object &o) {
-  if (!ParseStringProperty(&primitive->material, err, o, "material", true)) {
+  if (!ParseStringProperty(&primitive->material, err, o, "material", true,
+                           "mesh.primitive")) {
     return false;
   }
 
@@ -1582,23 +1715,14 @@ static bool ParsePrimitive(Primitive *primitive, std::string *err,
   ParseNumberProperty(&mode, err, o, "mode", false);
 
   int primMode = static_cast<int>(mode);
-  if (primMode != TINYGLTF_MODE_TRIANGLES) {
-    if (err) {
-      (*err) +=
-          "Currently TinyGLTFLoader doesn not support primitive mode other \n"
-          "than TRIANGLES.\n";
-    }
-    return false;
-  }
   primitive->mode = primMode;
 
   primitive->indices = "";
   ParseStringProperty(&primitive->indices, err, o, "indices", false);
 
-  if (!ParseStringMapProperty(&primitive->attributes, err, o, "attributes",
-                              true)) {
-    return false;
-  }
+  ParseStringMapProperty(&primitive->attributes, err, o, "attributes", false);
+
+  ParseExtrasProperty(&(primitive->extras), o);
 
   return true;
 }
@@ -1621,14 +1745,13 @@ static bool ParseMesh(Mesh *mesh, std::string *err, const picojson::object &o) {
     }
   }
 
+  ParseExtrasProperty(&(mesh->extras), o);
+
   return true;
 }
 
 static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
   ParseStringProperty(&node->name, err, o, "name", false);
-  ParseStringProperty(&node->jointName, err, o, "jointName", false);
-  ParseStringProperty(&node->skin, err, o, "skin", false);
-  ParseStringArrayProperty(&node->skeletons, err, o, "skeletons", false);
 
   ParseNumberArrayProperty(&node->rotation, err, o, "rotation", false);
   ParseNumberArrayProperty(&node->scale, err, o, "scale", false);
@@ -1654,6 +1777,8 @@ static bool ParseNode(Node *node, std::string *err, const picojson::object &o) {
     }
   }
 
+  ParseExtrasProperty(&(node->extras), o);
+
   return true;
 }
 
@@ -1677,9 +1802,7 @@ static bool ParseParameterProperty(Parameter *param, std::string *err,
   } else if (ParseNumberProperty(&num_val, err, o, prop, false)) {
     param->number_array.push_back(num_val);
     return true;
-  } else if(ParseJSONProperty(&param->json_value, err, o, prop, false)) {
-    return true;
-  }else {
+  } else {
     if (required) {
       if (err) {
         (*err) += "parameter must be a string or number / number array.\n";
@@ -1713,86 +1836,10 @@ static bool ParseMaterial(Material *material, std::string *err,
     }
   }
 
-  return true;
-}
-
-// PBR material extension has only a materialModel followed by a set of values
-static bool ParsePBRMaterial(PBRMaterial *material, std::string *err,
-                             const picojson::object &o) {
-  ParseStringProperty(&material->materialModel, err, o, "materialModel", true);
-  material->values.clear();
-  picojson::object::const_iterator valuesIt = o.find("values");
-
-  if ((valuesIt != o.end()) && (valuesIt->second).is<picojson::object>()) {
-    const picojson::object &values_object =
-        (valuesIt->second).get<picojson::object>();
-
-    picojson::object::const_iterator it(values_object.begin());
-    picojson::object::const_iterator itEnd(values_object.end());
-
-    for (; it != itEnd; it++) {
-      Parameter param;
-      if (ParseParameterProperty(&param, err, values_object, it->first,
-                                 false)) {
-        material->values[it->first] = param;
-      }
-    }
-  }
-
-  material->extras.clear();
-  picojson::object::const_iterator extrasIt = o.find("extras");
-
-  if ((extrasIt != o.end()) && (extrasIt->second).is<picojson::object>()) {
-    const picojson::object &extras_object =
-        (extrasIt->second).get<picojson::object>();
-
-    picojson::object::const_iterator it(extras_object.begin());
-    picojson::object::const_iterator itEnd(extras_object.end());
-
-    for (; it != itEnd; it++) {
-      Parameter param;
-      if (ParseParameterProperty(&param, err, extras_object, it->first,
-                                 false)) {
-        material->extras[it->first] = param;
-      }
-    }
-  }
+  ParseExtrasProperty(&(material->extras), o);
 
   return true;
 }
-
-//FIXME: the spec is not consistant with the official samples for this king of materials
-// so this function will need some updates
-static bool ParseKHRCommonMaterial(KHRCommonMaterial *material, std::string *err,
-                                   const picojson::object &o) {
-  ParseBooleanProperty(&material->doubleSided, err, o, "doubleSided", false);
-
-  // These are not declared as material properties (or declared as values)
-  ParseBooleanProperty(&material->transparent, err, o, "transparent", false);
-  ParseStringProperty(&material->technique, err, o, "technique", false);
-
-  material->values.clear();
-  picojson::object::const_iterator valuesIt = o.find("values");
-
-  if ((valuesIt != o.end()) && (valuesIt->second).is<picojson::object>()) {
-    const picojson::object &values_object =
-        (valuesIt->second).get<picojson::object>();
-
-    picojson::object::const_iterator it(values_object.begin());
-    picojson::object::const_iterator itEnd(values_object.end());
-
-    for (; it != itEnd; it++) {
-      Parameter param;
-      if (ParseParameterProperty(&param, err, values_object, it->first,
-                                 false)) {
-        material->values[it->first] = param;
-      }
-    }
-  }
-
-  return true;
-}
-
 
 static bool ParseShader(Shader *shader, std::string *err,
                         const picojson::object &o, const std::string &basedir,
@@ -1848,7 +1895,7 @@ static bool ParseShader(Shader *shader, std::string *err,
     }
   } else {
     // Load shader source from data uri
-    // TODO: Support ascii or utf-8 data uris.
+    // TODO(syoyo): Support ascii or utf-8 data uris.
     if (IsDataURI(uri)) {
       if (!DecodeDataURI(&shader->source, uri, 0, false)) {
         if (err) {
@@ -1880,6 +1927,8 @@ static bool ParseShader(Shader *shader, std::string *err,
 
   shader->type = static_cast<int>(type);
 
+  ParseExtrasProperty(&(shader->extras), o);
+
   return true;
 }
 
@@ -1899,6 +1948,8 @@ static bool ParseProgram(Program *program, std::string *err,
   // I suppose the list of attributes isn't needed, but a technique doesn't
   // really make sense without it.
   ParseStringArrayProperty(&program->attributes, err, o, "attributes", false);
+
+  ParseExtrasProperty(&(program->extras), o);
 
   return true;
 }
@@ -1962,6 +2013,8 @@ static bool ParseTechnique(Technique *technique, std::string *err,
     }
   }
 
+  ParseExtrasProperty(&(technique->extras), o);
+
   return true;
 }
 
@@ -1995,6 +2048,8 @@ static bool ParseAnimationChannel(AnimationChannel *channel, std::string *err,
       return false;
     }
   }
+
+  ParseExtrasProperty(&(channel->extras), o);
 
   return true;
 }
@@ -2077,16 +2132,7 @@ static bool ParseAnimation(Animation *animation, std::string *err,
   }
   ParseStringProperty(&animation->name, err, o, "name", false);
 
-  return true;
-}
-
-static bool parseSkin(Skin *skin, std::string *err,
-                          const picojson::object &o) {
-
-  ParseStringProperty(&skin->name, err, o, "name", false);
-  ParseNumberArrayProperty(&skin->bindShapeMatrix, err, o, "bindShapeMatrix", false);
-  ParseStringProperty(&skin->inverseBindMatrices, err, o, "inverseBindMatrices", true);
-  ParseStringArrayProperty(&skin->jointNames, err, o, "jointNames", true);
+  ParseExtrasProperty(&(animation->extras), o);
 
   return true;
 }
@@ -2109,6 +2155,8 @@ static bool ParseSampler(Sampler *sampler, std::string *err,
   sampler->magFilter = static_cast<int>(magFilter);
   sampler->wrapS = static_cast<int>(wrapS);
   sampler->wrapT = static_cast<int>(wrapT);
+
+  ParseExtrasProperty(&(sampler->extras), o);
 
   return true;
 }
@@ -2313,46 +2361,17 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
   // 8. Parse Material
   if (v.contains("materials") && v.get("materials").is<picojson::object>()) {
     const picojson::object &root = v.get("materials").get<picojson::object>();
+
     picojson::object::const_iterator it(root.begin());
     picojson::object::const_iterator itEnd(root.end());
     for (; it != itEnd; it++) {
-      picojson::object jsonMaterial = (it->second).get<picojson::object>();
-      std::map<std::string, picojson::value>::iterator extIt = jsonMaterial.find("extensions");
-      if(extIt != jsonMaterial.end()){
-          picojson::object extension = extIt->second.get<picojson::object>();
-          if(extension.begin()->first.compare("KHR_materials_common") == 0)
-          {
-            KHRCommonMaterial material;
-            // Assume that there is only one extension in the extensions
-            ParseStringProperty(&material.name, err, jsonMaterial, "name", false);
-            if(!ParseKHRCommonMaterial(&material, err, extension.begin()->second.get<picojson::object>()))
-            {
-              return false;
-            }
-            scene->commonMaterials[it->first] = material;
-          }
-          else if(extension.begin()->first.compare("FRAUNHOFER_materials_pbr") == 0)
-          {
-            PBRMaterial material;
-            // Assume that there is only one extension in the extensions
-            ParseStringProperty(&material.name, err, jsonMaterial, "name", false);
-            if(!ParsePBRMaterial(&material, err, extension.begin()->second.get<picojson::object>()))
-            {
-              return false;
-            }
-            scene->pbrMaterials[it->first] = material;
-          }
-      }   // Default material
-      else
-      {
-        Material material;
-        std::cout << "Found classic material" << std::endl;
-        if (!ParseMaterial(&material, err, jsonMaterial)) {
-          return false;
-        }
-
-        scene->materials[it->first] = material;
+      Material material;
+      if (!ParseMaterial(&material, err,
+                         (it->second).get<picojson::object>())) {
+        return false;
       }
+
+      scene->materials[it->first] = material;
     }
   }
 
@@ -2481,23 +2500,6 @@ bool TinyGLTFLoader::LoadFromString(Scene *scene, std::string *err,
     }
   }
 
-  // 14.5. Parse Skeleton data
-  if (v.contains("skins") && v.get("skins").is<picojson::object>()) {
-    const picojson::object &root = v.get("skins").get<picojson::object>();
-
-    picojson::object::const_iterator it(root.begin());
-    picojson::object::const_iterator itEnd(root.end());
-    for (; it != itEnd; ++it) {
-      Skin skin;
-      if (!parseSkin(&skin, err,
-                          (it->second).get<picojson::object>())) {
-        return false;
-      }
-
-      scene->skins[it->first] = skin;
-    }
-  }
-
   // 15. Parse Sampler
   if (v.contains("samplers") && v.get("samplers").is<picojson::object>()) {
     const picojson::object &root = v.get("samplers").get<picojson::object>();
@@ -2531,6 +2533,7 @@ bool TinyGLTFLoader::LoadASCIIFromFile(Scene *scene, std::string *err,
                                        const std::string &filename,
                                        unsigned int check_sections) {
   std::stringstream ss;
+
   std::ifstream f(filename.c_str());
   if (!f) {
     ss << "Failed to open file: " << filename << std::endl;
@@ -2560,7 +2563,6 @@ bool TinyGLTFLoader::LoadASCIIFromFile(Scene *scene, std::string *err,
   bool ret = LoadASCIIFromString(scene, err, &buf.at(0),
                                  static_cast<unsigned int>(buf.size()), basedir,
                                  check_sections);
-
 
   return ret;
 }
@@ -2663,5 +2665,3 @@ bool TinyGLTFLoader::LoadBinaryFromFile(Scene *scene, std::string *err,
 }  // namespace tinygltf
 
 #endif  // TINYGLTF_LOADER_IMPLEMENTATION
-
-#endif  // TINY_GLTF_LOADER_H_
