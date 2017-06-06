@@ -36,8 +36,11 @@ const Light light = {
 
 const Material material = {
     0.2,
-    0.7,
+    0.5,
 };
+
+// 0.2 0.5
+// 0.8 0.2
 
 const vec3 dielectricSpecular = vec3(0.04, 0.04, 0.04);
 
@@ -135,5 +138,5 @@ void main(void) {
     const vec3 fs = specular(normal, light_dir, view_dir, albedo);
 
     const vec3 fo = light.intensity * falloff(length(fs_in.L), light.radius);
-    out_Color = vec4(light.albedo * (fd + fs), 1.0);
+    out_Color = vec4(fo * light.albedo * (fd + fs), 1.0);
 }

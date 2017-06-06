@@ -422,7 +422,7 @@ void loadTexture(GLuint shaderProgram)
     GLint uniTexture = glGetUniformLocation(shaderProgram, "diffuseTexture");
     glProgramUniform1i(shaderProgram, uniTexture, texture);
 
-    glBindTextureUnit(GL_TEXTURE_2D_ARRAY, texture);
+    glBindTextureUnit(0, texture);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,7 +609,9 @@ int main(int argc, char *argv[])
     Scene scene;
     TinyGLTFLoader loader;
     string err;
+    auto t_a_start = std::chrono::high_resolution_clock::now();
     bool ret = loader.LoadASCIIFromFile(&scene, &err, argv[1]);
+    auto t_a_end = std::chrono::high_resolution_clock::now();
 
     if (!err.empty()) {
         cout << "Error: " << err << endl;
@@ -622,7 +624,17 @@ int main(int argc, char *argv[])
 
     cout << "# of meshes = " << scene.meshes.size() << endl;
     GLMDIBuffers mdiBuffers;
+
+    // Measure loading time
+    auto t_b_start = std::chrono::high_resolution_clock::now();
     loadMesh(scene, shaderProgram, mdiBuffers);
+    auto t_b_end = std::chrono::high_resolution_clock::now();
+
+    float t_a = std::chrono::duration_cast<std::chrono::duration<float>>(t_a_end - t_a_start).count() * 1000.0;
+    cout << "Mesh .gltf parse time: " << t_a << " ms" << endl;
+
+    float t_b = std::chrono::duration_cast<std::chrono::duration<float>>(t_b_end - t_b_start).count() * 1000.0;
+    cout << "Mesh loading time: " << t_b << " ms" << endl;
 
     //////////////////////////////////////////////////////////////////////
 
