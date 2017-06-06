@@ -22,7 +22,7 @@ using namespace tinygltf;
 
 using namespace std;
 
-float vertices[] = {
+/*float vertices[] = {
     -0.0f,  0.5f, 0.0f,
     -0.5f, -0.5f, 0.0f,
      0.5f, -0.5f, 0.0f,
@@ -37,7 +37,7 @@ unsigned int instances[] = {
 
 unsigned int indices[] = {
     0, 1, 2, 0, 1, 2
-};
+};*/
 
 typedef struct {
     GLuint  count;
@@ -47,9 +47,14 @@ typedef struct {
     GLuint  baseInstance;
 } DrawElementsIndirectCommand;
 
-DrawElementsIndirectCommand commands[2];
+//DrawElementsIndirectCommand commands[2];
 
-typedef struct { GLuint vbo, ibo, cbo; } GLMDIBuffers;
+// vbo contains the vertex attributes
+// ibo contains the indices
+// cbo contains an array of draw commands (DrawElementsIndirectCommand)
+// dbo contains an array of draw ID's (increasing numbers 0, 1, 2, etc. These are used
+// to index into a TBO for the matrix transforms and material data)
+typedef struct { GLuint vbo, ibo, cbo, dbo; GLsizei count; } GLMDIBuffers;
 
 // From https://blog.nobel-joergensen.com/2013/02/17/debugging-opengl-part-2-using-gldebugmessagecallback/
 void APIENTRY openglCallbackFunction(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
@@ -147,54 +152,43 @@ void printShaderLog(int shaderId)
     }
 }
 
-void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao, GLuint vbo, GLuint vbo_instances, GLuint ibo)
+void specifySceneVertexAttributes(GLuint shaderProgram, GLuint vao)
 {
     GLint posAttrib = glGetAttribLocation(shaderProgram, "in_Position");
-    GLint instAttrib = glGetAttribLocation(shaderProgram, "in_Instance");
+    GLint nomAttrib = glGetAttribLocation(shaderProgram, "in_Normal");
+    GLint texAttrib = glGetAttribLocation(shaderProgram, "in_UV");
+
+    GLint instAttrib = glGetAttribLocation(shaderProgram, "in_InstanceID");
+
+    cout << "in_Position: " << posAttrib << endl;
+    cout << "in_Normal: " << nomAttrib << endl;
+    cout << "in_UV: " << texAttrib << endl;
+    cout << "in_InstanceID: " << instAttrib << endl;
 
     glEnableVertexArrayAttrib(vao, posAttrib);
+    glEnableVertexArrayAttrib(vao, nomAttrib);
+    glEnableVertexArrayAttrib(vao, texAttrib);
+
     glEnableVertexArrayAttrib(vao, instAttrib);
 
     // Vertex format
     glVertexArrayAttribFormat(vao, posAttrib, 3, GL_FLOAT, GL_FALSE, 0*sizeof(float));
+    glVertexArrayAttribFormat(vao, nomAttrib, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float));
+    glVertexArrayAttribFormat(vao, texAttrib, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float));
     glVertexArrayAttribBinding(vao, posAttrib, 0);
+    glVertexArrayAttribBinding(vao, nomAttrib, 0);
+    glVertexArrayAttribBinding(vao, texAttrib, 0);
 
     glVertexArrayAttribIFormat(vao, instAttrib, 1, GL_INT, 0*sizeof(int));
     glVertexArrayAttribBinding(vao, instAttrib, 1);
     glVertexArrayBindingDivisor(vao, 1, 1);
-
-    // Bind vertex and index buffers
-    glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));
-    glVertexArrayVertexBuffer(vao, 1, vbo_instances, 0, 1*sizeof(int));
-    glVertexArrayElementBuffer(vao, ibo);
-
-    commands[0].count = 3;
-    commands[0].instanceCount = 1;
-    commands[0].firstIndex = 0;
-    commands[0].baseVertex = 0;
-    commands[0].baseInstance = 0;
-
-    commands[1].count = 3;
-    commands[1].instanceCount = 1;
-    commands[1].firstIndex = 3;
-    commands[1].baseVertex = 3;
-    commands[1].baseInstance = 1;
-}
-
-static void error_callback(int error, const char* description)
-{
-    cout << "GLFW: " << description << endl;
-}
-
-static void window_close_callback(GLFWwindow* window)
-{
-    cout << "Closing window" << endl;
 }
 
 static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuffers) {
     cout << "Loading mesh..." << endl;
 
     vector<DrawElementsIndirectCommand> commands;
+    vector<unsigned int> instances;
     map<string, int> viewsCommands; // maps bufferViews to index in the commands vector
     map<string, int> viewsIndices;
 
@@ -239,9 +233,12 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
         cout << "Error: expected equal number of vertex and index bufferViews" << endl;
     }
 
+    mdiBuffers.count = vboCount;
+
     glCreateBuffers(1, &mdiBuffers.vbo);
     glCreateBuffers(1, &mdiBuffers.ibo);
     glCreateBuffers(1, &mdiBuffers.cbo);
+    glCreateBuffers(1, &mdiBuffers.dbo);
 
     // Create 1 big buffer for all the vertex data (attributes like position, normals, UV)
     // and 1 buffer for all the indices, and 1 buffer for the draw commands
@@ -249,6 +246,7 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     glNamedBufferStorage(mdiBuffers.vbo, vboSize, NULL, GL_DYNAMIC_STORAGE_BIT);
     glNamedBufferStorage(mdiBuffers.ibo, iboSize, NULL, GL_DYNAMIC_STORAGE_BIT);
     glNamedBufferStorage(mdiBuffers.cbo, vboCount * sizeof(DrawElementsIndirectCommand), NULL, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(mdiBuffers.dbo, vboCount * sizeof(unsigned int), NULL, GL_DYNAMIC_STORAGE_BIT);
 
     map<string, tinygltf::BufferView>::const_iterator it2(scene.bufferViews.begin());
     map<string, tinygltf::BufferView>::const_iterator it2End(scene.bufferViews.end());
@@ -297,6 +295,8 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
             commands.push_back(command);
             cout << "Insert command for " << name << " at " << commands.size() - 1 << endl;
             viewsCommands.insert(pair<string,int>(name, commands.size() - 1));
+
+            instances.push_back(vboCount);
 
             vboOffset += bufferView.byteLength;
             vboCount++;
@@ -390,7 +390,119 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     // Copy commands to CBO
     glNamedBufferSubData(mdiBuffers.cbo, 0,
         commands.size() * sizeof(DrawElementsIndirectCommand), &commands.at(0));
+
+    // Copy instances vector to DrawID buffer
+    // This buffer is needed if GL_ARB_shader_draw_parameters is
+    // unavailable or buggy (on Mesa for Ivy Bridge)
+    // Separate buffer is also a little bit faster according to Nvidia
+    glNamedBufferSubData(mdiBuffers.dbo, 0, instances.size() * sizeof(unsigned int), &instances.at(0));
 }
+
+void loadTexture(GLuint shaderProgram)
+{
+    float pixels[] = {
+        0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,
+        0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f
+    };
+
+    GLuint texture;
+    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &texture);
+
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    const auto depth = 1;
+    glTextureStorage3D(texture, 1, GL_RGBA8, 4, 4, depth);
+    glTextureSubImage3D(texture, 0, 0, 0, 0, 4, 4, depth, GL_RGB, GL_FLOAT, pixels);
+
+    GLint uniTexture = glGetUniformLocation(shaderProgram, "diffuseTexture");
+    glProgramUniform1i(shaderProgram, uniTexture, texture);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GLFW callbacks
+////////////////////////////////////////////////////////////////////////////////
+
+static void error_callback(int error, const char* description)
+{
+    cout << "GLFW: " << description << endl;
+}
+
+float z_rotate = 0.0f;
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_ESCAPE and action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GL_TRUE);
+    else if (key == GLFW_KEY_LEFT and action != GLFW_RELEASE)
+        z_rotate += 2.0f;
+    else if (key == GLFW_KEY_RIGHT and action != GLFW_RELEASE)
+        z_rotate -= 2.0f;
+}
+
+static void window_size_callback(GLFWwindow* window, int width, int height)
+{
+    cout << "with: " << width << " height: " << height << endl;
+}
+
+static void window_close_callback(GLFWwindow* window)
+{
+    cout << "Closing window" << endl;
+}
+
+bool moving_camera = false;
+double mouse_x = 0.0;
+double mouse_y = 0.0;
+double mouse_offset_x = 0.0;
+double mouse_offset_y = 0.0;
+double prev_mouse_offset_x = 0.0;
+double prev_mouse_offset_y = 0.0;
+
+static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    if (moving_camera)
+    {
+        mouse_offset_x = (xpos - mouse_x) / 2.0 + prev_mouse_offset_x;
+        mouse_offset_y = ypos - mouse_y + prev_mouse_offset_y;
+    }
+    else
+    {
+        mouse_x = xpos;
+        mouse_y = ypos;
+    }
+}
+
+static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_RIGHT)
+    {
+        moving_camera = (action == GLFW_PRESS);
+        if (moving_camera)
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        else
+        {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            prev_mouse_offset_x = mouse_offset_x;
+            prev_mouse_offset_y = mouse_offset_y;
+        }
+    }
+}
+
+double mouse_scroll_y = 2.0;
+
+static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    cout << "scroll x: " << xoffset << " y: " << yoffset << endl;
+    mouse_scroll_y = std::max(2.0, mouse_scroll_y - yoffset / 2);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Main
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[])
 {
@@ -429,7 +541,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetWindowSizeCallback(window, window_size_callback);
     glfwSetWindowCloseCallback(window, window_close_callback);
+    glfwSetCursorPosCallback(window, cursor_pos_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     // Make the window's context current
     glfwMakeContextCurrent(window);
@@ -506,66 +623,77 @@ int main(int argc, char *argv[])
 
     //////////////////////////////////////////////////////////////////////
 
-    glNamedBufferData(vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glNamedBufferData(vbo_instances, sizeof(instances), instances, GL_STATIC_DRAW);
-    glNamedBufferData(ibo, sizeof(indices), indices, GL_STATIC_DRAW);
+    loadTexture(shaderProgram);
 
-    // Specify vertex format and bind VBO and IBO
-    specifySceneVertexAttributes(shaderProgram, vao, vbo, vbo_instances, ibo);
+    //////////////////////////////////////////////////////////////////////
 
-    glNamedBufferData(cbo, sizeof(commands), commands, GL_STATIC_DRAW);
+    // Specify vertex format
+    specifySceneVertexAttributes(shaderProgram, vao);
 
     glBindVertexArray(vao);
     glUseProgram(shaderProgram);
 
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, cbo);
-
-//    glm::mat4 trans;
-//    trans = glm::rotate(trans, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-    GLint uniTrans = glGetUniformLocation(shaderProgram, "world");
+    GLint uniWorld = glGetUniformLocation(shaderProgram, "world");
     GLint uniView = glGetUniformLocation(shaderProgram, "view");
     GLint uniProj = glGetUniformLocation(shaderProgram, "proj");
 
-//    glm::vec4 result = trans * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-//    printf("glm test: %f, %f, %f\n", result.x, result.y, result.z);
-
-//    glProgramUniformMatrix4fv(shaderProgram, uniTrans, 1, GL_FALSE, glm::value_ptr(trans));
-
     auto t_start = std::chrono::high_resolution_clock::now();
 
-    // Projection matrix
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), windowWidth / windowHeight, 1.0f, 10.0f);
-    glProgramUniformMatrix4fv(shaderProgram, uniProj, 1, GL_FALSE, glm::value_ptr(proj));
+    // START BIND
+        // Bind vertex and index buffers
+        glVertexArrayVertexBuffer(vao, 0, mdiBuffers.vbo, 0, 8*sizeof(float));
+        glVertexArrayVertexBuffer(vao, 1, mdiBuffers.dbo, 0, 1*sizeof(int));
+        glVertexArrayElementBuffer(vao, mdiBuffers.ibo);
+
+        // Bind command buffer and do MDI
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, mdiBuffers.cbo);
+    // END BIND
+
+//    glEnable(GL_DEPTH_TEST);
+//    glEnable(GL_CULL_FACE);
 
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
-        auto t_now = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
+        glfwPollEvents();
+//        auto t_now = std::chrono::high_resolution_clock::now();
+//        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
+        float time = 0.0;
+
+    float ratio;
+    int width, height;
+
+    glfwGetFramebufferSize(window, &width, &height);
+    ratio = width / (float) height;
 
         // View matrix
-        glm::mat4 view = glm::lookAt(
-            glm::vec3(1.2f, 1.2f, 1.2f),
-            glm::vec3(0.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 0.0f, 1.0f)
-        );
+//        glm::mat4 view = glm::lookAt(
+//            glm::vec3(1.0f, 1.0f, 10.0f),
+//            glm::vec3(0.0f, 0.0f, 0.0f),
+//            glm::vec3(0.0f, 0.0f, 1.0f)
+//        );
+        glm::mat4 view;
+        view = glm::translate(view, glm::vec3(0, 0, -mouse_scroll_y));
+        view = glm::rotate(view, glm::radians((float) mouse_offset_y), glm::vec3(1, 0, 0));
+        view = glm::rotate(view, glm::radians((float) mouse_offset_x), glm::vec3(0, 0, 1));
         glProgramUniformMatrix4fv(shaderProgram, uniView, 1, GL_FALSE, glm::value_ptr(view));
+
+        // Projection matrix
+        glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float) (width / height), 0.1f, 100.0f);
+        glProgramUniformMatrix4fv(shaderProgram, uniProj, 1, GL_FALSE, glm::value_ptr(proj));
 
         // World matrix
         glm::mat4 trans;
         trans = glm::rotate(trans, time * glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        glProgramUniformMatrix4fv(shaderProgram, uniTrans, 1, GL_FALSE, glm::value_ptr(trans));
+        glProgramUniformMatrix4fv(shaderProgram, uniWorld, 1, GL_FALSE, glm::value_ptr(trans));
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-//        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, NULL, 2, 0);
+        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, NULL, mdiBuffers.count, 0);
 
         // Swap front and back buffers and poll for and process events
         glfwSwapBuffers(window);
-        glfwPollEvents();
     }
 
     glDeleteProgram(shaderProgram);
