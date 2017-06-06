@@ -202,8 +202,7 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     int iboCount = 0;
 
     // vec3 + vec3 + vec2 = 32 bytes
-    const int totalAttributesByteSize = 4 * 3 + 4 * 3 + 4 * 2;
-    const int elementsPerVertex = 3 + 3 + 2;
+    const int bytesPerVertex = 4 * 3 + 4 * 3 + 4 * 2;
 
     // Assuming indices are always unsigned ints
     const int bytesPerIndex = 4;
@@ -232,6 +231,7 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     if (vboCount != iboCount) {
         cout << "Error: expected equal number of vertex and index bufferViews" << endl;
     }
+    cout << "count: " << vboCount << endl;
 
     mdiBuffers.count = vboCount;
 
@@ -289,7 +289,7 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
             command.count = 0;
             command.instanceCount = 1;
             command.firstIndex = 0;
-            command.baseVertex = vboOffset / totalAttributesByteSize * elementsPerVertex;
+            command.baseVertex = vboOffset / bytesPerVertex;
             command.baseInstance = vboCount;
 
             commands.push_back(command);
@@ -421,6 +421,8 @@ void loadTexture(GLuint shaderProgram)
 
     GLint uniTexture = glGetUniformLocation(shaderProgram, "diffuseTexture");
     glProgramUniform1i(shaderProgram, uniTexture, texture);
+
+    glBindTextureUnit(GL_TEXTURE_2D_ARRAY, texture);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,6 +500,7 @@ static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     cout << "scroll x: " << xoffset << " y: " << yoffset << endl;
     mouse_scroll_y = std::max(2.0, mouse_scroll_y - yoffset / 2);
+    cout << mouse_scroll_y << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -530,11 +533,11 @@ int main(int argc, char *argv[])
 
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-    const float windowWidth = 500.0f;
-    const float windowHeight = 500.0f;
+    const float windowWidth = 1280.0f;
+    const float windowHeight = 720.0f;
 
     // Create a windowed mode window and its OpenGL context
-    window = glfwCreateWindow(500, 500, "MDI", NULL, NULL);
+    window = glfwCreateWindow(windowWidth, windowHeight, "MDI", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -628,9 +631,9 @@ int main(int argc, char *argv[])
     //////////////////////////////////////////////////////////////////////
 
     // Specify vertex format
+    glBindVertexArray(vao);
     specifySceneVertexAttributes(shaderProgram, vao);
 
-    glBindVertexArray(vao);
     glUseProgram(shaderProgram);
 
     GLint uniWorld = glGetUniformLocation(shaderProgram, "world");
@@ -649,8 +652,8 @@ int main(int argc, char *argv[])
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, mdiBuffers.cbo);
     // END BIND
 
-//    glEnable(GL_DEPTH_TEST);
-//    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
 
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
@@ -660,11 +663,11 @@ int main(int argc, char *argv[])
 //        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
         float time = 0.0;
 
-    float ratio;
-    int width, height;
+        int width, height;
 
-    glfwGetFramebufferSize(window, &width, &height);
-    ratio = width / (float) height;
+        glfwGetFramebufferSize(window, &width, &height);
+        float ratio = (float) width / (float) height;
+        glViewport(0, 0, width, height);
 
         // View matrix
 //        glm::mat4 view = glm::lookAt(
@@ -679,16 +682,17 @@ int main(int argc, char *argv[])
         glProgramUniformMatrix4fv(shaderProgram, uniView, 1, GL_FALSE, glm::value_ptr(view));
 
         // Projection matrix
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float) (width / height), 0.1f, 100.0f);
+        glm::mat4 proj = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 1000.0f);
         glProgramUniformMatrix4fv(shaderProgram, uniProj, 1, GL_FALSE, glm::value_ptr(proj));
 
         // World matrix
         glm::mat4 trans;
-        trans = glm::rotate(trans, time * glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        trans = glm::translate(trans, glm::vec3(0, 0, 0));
+//        trans = glm::rotate(trans, time * glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         glProgramUniformMatrix4fv(shaderProgram, uniWorld, 1, GL_FALSE, glm::value_ptr(trans));
 
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClearColor(0.0f, 0.0f, 0.5f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, NULL, mdiBuffers.count, 0);
 
