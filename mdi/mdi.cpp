@@ -16,6 +16,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "tiny_gltf_loader.h"
 
+#include "gltf.h"
+
 using namespace tinygltf;
 
 using namespace std;
@@ -46,6 +48,8 @@ typedef  struct {
 } DrawElementsIndirectCommand;
 
 DrawElementsIndirectCommand commands[2];
+
+typedef struct { GLuint vbo, ibo; } GLMDIBuffers;
 
 // From https://blog.nobel-joergensen.com/2013/02/17/debugging-opengl-part-2-using-gldebugmessagecallback/
 void APIENTRY openglCallbackFunction(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
@@ -187,8 +191,75 @@ static void window_close_callback(GLFWwindow* window)
     cout << "Closing window" << endl;
 }
 
-static void loadMesh(tinygltf::Scene &scene, GLuint progId) {
+static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuffers) {
     cout << "Loading mesh..." << endl;
+
+    map<string, tinygltf::BufferView>::const_iterator it(scene.bufferViews.begin());
+    map<string, tinygltf::BufferView>::const_iterator itEnd(scene.bufferViews.end());
+
+    int vboSize = 0;
+    int iboSize = 0;
+
+    for (; it != itEnd; it++) {
+        const tinygltf::BufferView &bufferView = it->second;
+        if (bufferView.target == 0) {
+            cout << "Warning: bufferView.target is zero" << endl;
+            continue;
+        }
+
+        const tinygltf::Buffer &buffer = scene.buffers[bufferView.buffer];
+        if (bufferView.target == ELEMENT_ARRAY_BUFFER) {
+            iboSize += bufferView.byteLength;
+        }
+        else if (bufferView.target == ARRAY_BUFFER) {
+            vboSize += bufferView.byteLength;
+        }
+    }
+
+    cout << "bytes vbo: " << vboSize << endl;
+    cout << "bytes ibo: " << iboSize << endl;
+
+    glCreateBuffers(1, &mdiBuffers.vbo);
+    glCreateBuffers(1, &mdiBuffers.ibo);
+
+    // Create 1 big buffer for all the vertex data (attributes like position, normals, UV)
+    // and 1 buffer for all the indices
+    // Note: assuming here that vertex attributes are interleaved
+    glNamedBufferStorage(mdiBuffers.vbo, vboSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(mdiBuffers.ibo, iboSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+
+    map<string, tinygltf::BufferView>::const_iterator it2(scene.bufferViews.begin());
+    map<string, tinygltf::BufferView>::const_iterator it2End(scene.bufferViews.end());
+
+    int vboOffset = 0;
+    int iboOffset = 0;
+
+    // Copy data from buffer views to the VBO or IBO
+    // Note: assuming here that vertex attributes are interleaved
+    // (which means that for each mesh part, all its attributes fit in a single bufferView)
+    for (; it2 != it2End; it2++) {
+        const tinygltf::BufferView &bufferView = it2->second;
+
+        const tinygltf::Buffer &buffer = scene.buffers[bufferView.buffer];
+        if (bufferView.target == ELEMENT_ARRAY_BUFFER) {
+            glNamedBufferSubData (mdiBuffers.ibo, vboOffset, bufferView.byteLength,
+                &buffer.data.at(0) + bufferView.byteOffset);
+            vboOffset += bufferView.byteLength;
+        }
+        else if (bufferView.target == ARRAY_BUFFER) {
+            glNamedBufferSubData (mdiBuffers.vbo, iboOffset, bufferView.byteLength,
+                &buffer.data.at(0) + bufferView.byteOffset);
+            iboOffset += bufferView.byteLength;
+        }
+    }
+
+    std::map<std::string, tinygltf::Mesh>::const_iterator itMesh(scene.meshes.begin());
+    std::map<std::string, tinygltf::Mesh>::const_iterator itMeshEnd(scene.meshes.end());
+
+    for (; itMesh != itMeshEnd; itMesh++) {
+        const tinygltf::Mesh &mesh = itMesh->second;
+        cout << mesh.name << " has " << mesh.primitives.size() << " primitives" << endl;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -300,7 +371,8 @@ int main(int argc, char *argv[])
     }
 
     cout << "# of meshes = " << scene.meshes.size() << endl;
-    loadMesh(scene, shaderProgram);
+    GLMDIBuffers mdiBuffers;
+    loadMesh(scene, shaderProgram, mdiBuffers);
 
     //////////////////////////////////////////////////////////////////////
 
@@ -374,6 +446,9 @@ int main(int argc, char *argv[])
     glDeleteBuffers(1, &vbo_instances);
     glDeleteBuffers(1, &ibo);
     glDeleteBuffers(1, &cbo);
+
+    glDeleteBuffers(1, &mdiBuffers.vbo);
+    glDeleteBuffers(1, &mdiBuffers.ibo);
 
     glDeleteVertexArrays(1, &vao);
 
