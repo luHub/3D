@@ -33,6 +33,10 @@ typedef struct {
 
 typedef std::pair<int, int> TextureLocation;
 
+typedef std::tuple<float, float, float, float> Vector;
+
+typedef std::tuple<Vector, Vector, Vector, Vector> Matrix4x4;
+
 typedef struct {
     // Vertex attributes, indices, draw commands (DrawElementsIndirectCommand),
     // and array of draw ID's (increasing numbers 0, 1, 2, etc. These are used
@@ -48,9 +52,16 @@ typedef struct {
     // Array of TEXTURE_2D_ARRAY to bind to binding points 0, 1, ..., etc.
     std::vector<GLuint> textureArrays;
 
-    // Just a layer + index for the texture per draw command
-    std::vector<TextureLocation> materials;
+    // VBO contains per draw command the layer + index for the texture
+    GLuint vboMaterials, tboMaterials;
+
+    // VBO + TBO for transforms
+    GLuint vboTransforms, tboTransforms;
 } GLMDIBuffers;
+
+// 0 contains transforms, 1 contains materials
+// 2, 3, ..., etc. contain texture arrays
+const int firstBindingPointTextureArrays = 2;
 
 // openglCallbackFunction function from
 // https://blog.nobel-joergensen.com/2013/02/17/debugging-opengl-part-2-using-gldebugmessagecallback/
@@ -290,7 +301,9 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
             command.baseInstance = vboCount;
 
             commands.push_back(command);
+#ifdef DEBUG
             cout << "Insert command for " << name << " at " << commands.size() - 1 << endl;
+#endif
             viewsCommands.insert(pair<string,int>(name, commands.size() - 1));
 
             instances.push_back(vboCount);
@@ -307,7 +320,9 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
 
     for (; itMesh != itMeshEnd; itMesh++) {
         const tinygltf::Mesh &mesh = itMesh->second;
+#ifdef DEBUG
         cout << mesh.name << " has " << mesh.primitives.size() << " primitives" << endl;
+#endif
 
         if (mesh.primitives.size() != 1) {
             // We expect 1 primitive for simplicity
@@ -367,8 +382,10 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
                 cout << "Error: expected unsigned int indices for mesh " << mesh.name << endl;
             }
 
+#ifdef DEBUG
             cout << mesh.name << " is OK with bufferView " << posAccessor.bufferView;
             cout << " " << viewsCommands[posAccessor.bufferView] << endl;
+#endif
 
             const int commandIndex = viewsCommands[posAccessor.bufferView];
 
@@ -386,6 +403,7 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
 
     // Debug: print commands
 
+#ifdef DEBUG
     vector<DrawElementsIndirectCommand>::const_iterator itCommand(commands.begin());
     vector<DrawElementsIndirectCommand>::const_iterator itCommandEnd(commands.end());
 
@@ -396,6 +414,7 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
         cout << " firstIndex: " << command.firstIndex << " baseVertex: " << command.baseVertex;
         cout << " baseInstance: " << command.baseInstance << endl;
     }
+#endif
 
     // Copy commands to CBO
     glNamedBufferSubData(mdiBuffers.cbo, 0,
@@ -406,6 +425,15 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     // unavailable or buggy (on Mesa for Ivy Bridge)
     // Separate buffer is also a little bit faster according to Nvidia
     glNamedBufferSubData(mdiBuffers.dbo, 0, instances.size() * sizeof(unsigned int), &instances.at(0));
+
+    cout << "TODO Implement transform TBO start" << endl;
+    // TODO Unused currently
+    glCreateBuffers(1, &mdiBuffers.vboTransforms);
+    glNamedBufferStorage(mdiBuffers.vboTransforms, instances.size() * sizeof(Matrix4x4), NULL, GL_DYNAMIC_STORAGE_BIT);
+
+    glCreateTextures(GL_TEXTURE_BUFFER, 1, &mdiBuffers.tboTransforms);
+    glTextureBuffer(mdiBuffers.tboTransforms, GL_RGBA32F, mdiBuffers.vboTransforms);
+    cout << "TODO Implement transform TBO end" << endl;
 }
 
 void loadTexture(tinygltf::Scene &scene, GLuint shaderProgram, GLMDIBuffers &mdiBuffers)
@@ -553,13 +581,20 @@ void loadTexture(tinygltf::Scene &scene, GLuint shaderProgram, GLMDIBuffers &mdi
             const std::string textureName = material.values["diffuse"].string_value;
             const int drawID = mdiBuffers.meshCommands[mesh.name];
             const TextureLocation location = textureLocations[textureName];
+#ifdef DEBUG
             cout << "Mesh " << mesh.name << " at " << drawID <<" uses texture '" << textureName << "'" << endl;
             cout << "  which is at layer " << location.first << " at index " << location.second << endl;
+#endif
             materials.at(drawID) = location;
         }
     }
 
-    mdiBuffers.materials = materials;
+    glCreateBuffers(1, &mdiBuffers.vboMaterials);
+    glNamedBufferStorage(mdiBuffers.vboMaterials, materials.size() * sizeof(TextureLocation), &materials.at(0), GL_DYNAMIC_STORAGE_BIT);
+//    glNamedBufferSubData(mdiBuffers.vboMaterials, 0, materials.size() * sizeof(TextureLocation), &materials.at(0));
+
+    glCreateTextures(GL_TEXTURE_BUFFER, 1, &mdiBuffers.tboMaterials);
+    glTextureBuffer(mdiBuffers.tboMaterials, GL_RG32I, mdiBuffers.vboMaterials);
 
     // Basic 4x4 checkerboard
 //    float pixels[] = {
@@ -573,19 +608,23 @@ void loadTexture(tinygltf::Scene &scene, GLuint shaderProgram, GLMDIBuffers &mdi
 
 void bindTextureArrays(GLMDIBuffers &mdiBuffers)
 {
+    // Bind TBO's for transform matrices and materials
+    glBindTextureUnit(0, mdiBuffers.tboTransforms);
+    glBindTextureUnit(1, mdiBuffers.tboMaterials);
+
     std::vector<GLuint>::const_iterator it(mdiBuffers.textureArrays.begin());
     std::vector<GLuint>::const_iterator itEnd(mdiBuffers.textureArrays.end());
 
-    int layer = 0;
+    int bp = firstBindingPointTextureArrays;
 
     for (; it != itEnd; it++) {
         GLuint textureArray = *it;
 
         // Bind the texture arrays
-        cout << "Binding texture array " << textureArray << " to binding point " << layer << endl;
-        glBindTextureUnit(layer, textureArray);
+        cout << "Binding texture array " << textureArray << " to binding point " << bp << endl;
+        glBindTextureUnit(bp, textureArray);
 
-        layer++;
+        bp++;
     }
 }
 
@@ -812,8 +851,14 @@ int main(int argc, char *argv[])
 
     // Texture arrays bindings points (limited to arbitrary amount of 8 in fragment shader)
     GLint uniTexture = glGetUniformLocation(shaderProgram, "diffuseTextures");
-    GLint textureArraysBindingsPoints[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    glProgramUniform1iv(shaderProgram, uniTexture, 8, textureArraysBindingsPoints);
+    GLint textureArraysBindingsPoints[4] = {2, 3, 4, 5};
+    glProgramUniform1iv(shaderProgram, uniTexture, 4, textureArraysBindingsPoints);
+
+    // Binding points for the TBO's containing the world matrices and materials
+    GLint uniMatrices = glGetUniformLocation(shaderProgram, "worldMatrices");
+    GLint uniMaterials = glGetUniformLocation(shaderProgram, "materials");
+    glProgramUniform1i(shaderProgram, uniMatrices, 0);
+    glProgramUniform1i(shaderProgram, uniMaterials, 1);
 
     auto t_start = std::chrono::high_resolution_clock::now();
 
@@ -847,11 +892,6 @@ int main(int argc, char *argv[])
         glViewport(0, 0, width, height);
 
         // View matrix
-//        glm::mat4 view = glm::lookAt(
-//            glm::vec3(1.0f, 1.0f, 10.0f),
-//            glm::vec3(0.0f, 0.0f, 0.0f),
-//            glm::vec3(0.0f, 0.0f, 1.0f)
-//        );
         glm::mat4 view;
         view = glm::translate(view, glm::vec3(0, 0, -mouse_scroll_y));
         view = glm::rotate(view, glm::radians((float) mouse_offset_y), glm::vec3(1, 0, 0));
@@ -885,6 +925,12 @@ int main(int argc, char *argv[])
     glDeleteBuffers(1, &mdiBuffers.ibo);
     glDeleteBuffers(1, &mdiBuffers.cbo);
     glDeleteBuffers(1, &mdiBuffers.dbo);
+
+    glDeleteBuffers(1, &mdiBuffers.vboMaterials);
+    glDeleteBuffers(1, &mdiBuffers.tboMaterials);
+
+    glDeleteBuffers(1, &mdiBuffers.vboTransforms);
+    glDeleteBuffers(1, &mdiBuffers.tboTransforms);
 
     glDeleteVertexArrays(1, &vao);
 

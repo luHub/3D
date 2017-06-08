@@ -1,8 +1,9 @@
-#version 330 core
+#version 420 core
 
 #extension GL_ARB_shading_language_420pack : require
+#extension GL_ARB_explicit_uniform_location : require
 
-flat in uint var_InstanceID;
+flat in int var_InstanceID;
 
 in VS_OUT {
     vec3 N;
@@ -10,6 +11,8 @@ in VS_OUT {
     vec3 V;
     vec2 uv;
 } fs_in;
+
+layout(location = 1) uniform samplerBuffer materials;
 
 // Maximum 8 arrays
 uniform sampler2DArray diffuseTextures[8];
@@ -27,7 +30,7 @@ struct Light {
 struct Material {
     float metallic;
     float roughness;
-    ivec2 texture;
+//    ivec2 texture;
 };
 
 const Light light = {
@@ -39,7 +42,7 @@ const Light light = {
 const Material material = {
     0.2,
     0.5,
-    ivec2(0, 0), // first layer, first texture in layer
+//    ivec2(0, 0), // first layer, first texture in layer
 };
 
 // 0.2 0.5
@@ -135,8 +138,11 @@ void main(void) {
     const vec3 light_dir = normalize(fs_in.L);
     const vec3 view_dir  = normalize(fs_in.V);
 
-    vec4 albedo = texture(diffuseTextures[material.texture.x], vec3(fs_in.uv, material.texture.y));
+//    vec4 albedo = texture(diffuseTextures[0], vec3(fs_in.uv, 0));
 //    vec4 albedo = texture(diffuseTextures[material.texture.x], vec3(fs_in.uv, var_InstanceID));
+
+    const ivec2 foo = ivec4(texelFetch(materials, var_InstanceID)).xy;
+    vec4 albedo = texture(diffuseTextures[foo.x], vec3(fs_in.uv, foo.y));
 
     const vec3 fd = diffuse(normal, light_dir, albedo);
     const vec3 fs = specular(normal, light_dir, view_dir, albedo);

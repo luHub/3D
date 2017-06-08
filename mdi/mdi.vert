@@ -1,4 +1,6 @@
-#version 330 core
+#version 420 core
+
+#extension GL_ARB_explicit_uniform_location : require
 
 layout(location = 0) in vec3 in_Position;
 layout(location = 1) in vec3 in_Normal;
@@ -6,7 +8,7 @@ layout(location = 2) in vec2 in_UV;
 layout(location = 3) in  int in_InstanceID;
 
 // TODO Replace world with index into matrixBuffer
-//uniform samplerBuffer matrixBuffer;
+layout(location = 0) uniform samplerBuffer worldMatrices;
 uniform mat4 world;
 
 uniform mat4 view;
@@ -19,7 +21,7 @@ out VS_OUT {
     vec2 uv;
 } vs_out;
 
-flat out uint var_InstanceID;
+flat out int var_InstanceID;
 
 mat4 get_matrix(samplerBuffer buffer, int index) {
     int offset = index * 4;
@@ -48,5 +50,5 @@ void main(void) {
      vs_out.uv = in_UV;
 
      // Modulo number of textures
-     var_InstanceID = uint(mod(in_InstanceID, 7.0));
+     var_InstanceID = in_InstanceID;
 }
