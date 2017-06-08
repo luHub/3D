@@ -759,13 +759,6 @@ int main(int argc, char *argv[])
     GLuint vao;
     glCreateVertexArrays(1, &vao);
 
-    // Vertex Buffer Object
-    GLuint vbo, vbo_instances, ibo, cbo;
-    glCreateBuffers(1, &vbo);
-    glCreateBuffers(1, &vbo_instances);
-    glCreateBuffers(1, &ibo);
-    glCreateBuffers(1, &cbo);
-
     //////////////////////////////////////////////////////////////////////
 
     Scene scene;
@@ -888,13 +881,10 @@ int main(int argc, char *argv[])
     glDeleteShader(shaderVS);
     glDeleteShader(shaderFS);
 
-    glDeleteBuffers(1, &vbo);
-    glDeleteBuffers(1, &vbo_instances);
-    glDeleteBuffers(1, &ibo);
-    glDeleteBuffers(1, &cbo);
-
     glDeleteBuffers(1, &mdiBuffers.vbo);
     glDeleteBuffers(1, &mdiBuffers.ibo);
+    glDeleteBuffers(1, &mdiBuffers.cbo);
+    glDeleteBuffers(1, &mdiBuffers.dbo);
 
     glDeleteVertexArrays(1, &vao);
 
