@@ -1835,6 +1835,39 @@ static bool ParseMaterial(Material *material, std::string *err,
       }
     }
   }
+  else {
+    picojson::object::const_iterator extensionsIt = o.find("extensions");
+
+    if ((extensionsIt != o.end()) && (extensionsIt->second).is<picojson::object>()) {
+      const picojson::object &extensions_object =
+          (extensionsIt->second).get<picojson::object>();
+
+      picojson::object::const_iterator commonIt = extensions_object.find("KHR_materials_common");
+
+      if ((commonIt != extensions_object.end()) && (commonIt->second).is<picojson::object>()) {
+          const picojson::object &common_object =
+              (commonIt->second).get<picojson::object>();
+
+        picojson::object::const_iterator valuesIt = common_object.find("values");
+
+        if ((valuesIt != common_object.end()) && (valuesIt->second).is<picojson::object>()) {
+          const picojson::object &values_object =
+            (valuesIt->second).get<picojson::object>();
+
+          picojson::object::const_iterator it(values_object.begin());
+          picojson::object::const_iterator itEnd(values_object.end());
+
+          for (; it != itEnd; it++) {
+            Parameter param;
+            if (ParseParameterProperty(&param, err, values_object, it->first,
+                                       false)) {
+              material->values[it->first] = param;
+            }
+          }
+        }
+      }
+    }
+  }
 
   ParseExtrasProperty(&(material->extras), o);
 

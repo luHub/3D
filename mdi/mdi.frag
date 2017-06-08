@@ -11,7 +11,8 @@ in VS_OUT {
     vec2 uv;
 } fs_in;
 
-uniform sampler2DArray diffuseTexture;
+// Maximum 8 arrays
+uniform sampler2DArray diffuseTextures[8];
 
 out vec4 out_Color;
 
@@ -26,17 +27,19 @@ struct Light {
 struct Material {
     float metallic;
     float roughness;
+    ivec2 texture;
 };
 
 const Light light = {
     vec3(1.0, 1.0, 1.0),
     500.0,
-    50000.0,
+    5000.0,
 };
 
 const Material material = {
     0.2,
     0.5,
+    ivec2(0, 0), // first layer, first texture in layer
 };
 
 // 0.2 0.5
@@ -132,7 +135,8 @@ void main(void) {
     const vec3 light_dir = normalize(fs_in.L);
     const vec3 view_dir  = normalize(fs_in.V);
 
-    vec4 albedo = texture(diffuseTexture, vec3(fs_in.uv, var_InstanceID));
+    vec4 albedo = texture(diffuseTextures[material.texture.x], vec3(fs_in.uv, material.texture.y));
+//    vec4 albedo = texture(diffuseTextures[material.texture.x], vec3(fs_in.uv, var_InstanceID));
 
     const vec3 fd = diffuse(normal, light_dir, albedo);
     const vec3 fs = specular(normal, light_dir, view_dir, albedo);

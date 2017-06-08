@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <chrono>
+#include <math.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -22,23 +23,6 @@ using namespace tinygltf;
 
 using namespace std;
 
-/*float vertices[] = {
-    -0.0f,  0.5f, 0.0f,
-    -0.5f, -0.5f, 0.0f,
-     0.5f, -0.5f, 0.0f,
-    -0.5f,  0.5f, 0.0f,
-     0.0f, -0.5f, 0.0f,
-     0.5f,  0.5f, 0.0f
-};
-
-unsigned int instances[] = {
-    2, 3
-};
-
-unsigned int indices[] = {
-    0, 1, 2, 0, 1, 2
-};*/
-
 typedef struct {
     GLuint  count;
     GLuint  instanceCount;
@@ -47,16 +31,29 @@ typedef struct {
     GLuint  baseInstance;
 } DrawElementsIndirectCommand;
 
-//DrawElementsIndirectCommand commands[2];
+typedef std::pair<int, int> TextureLocation;
 
-// vbo contains the vertex attributes
-// ibo contains the indices
-// cbo contains an array of draw commands (DrawElementsIndirectCommand)
-// dbo contains an array of draw ID's (increasing numbers 0, 1, 2, etc. These are used
-// to index into a TBO for the matrix transforms and material data)
-typedef struct { GLuint vbo, ibo, cbo, dbo; GLsizei count; } GLMDIBuffers;
+typedef struct {
+    // Vertex attributes, indices, draw commands (DrawElementsIndirectCommand),
+    // and array of draw ID's (increasing numbers 0, 1, 2, etc. These are used
+    // to index into a TBO for the matrix transforms and material data)
+    GLuint vbo, ibo, cbo, dbo;
 
-// From https://blog.nobel-joergensen.com/2013/02/17/debugging-opengl-part-2-using-gldebugmessagecallback/
+    // Number of draw commands
+    GLsizei count;
+
+    // Mapping of mesh names to its draw command position
+    std::map<string, int> meshCommands;
+
+    // Array of TEXTURE_2D_ARRAY to bind to binding points 0, 1, ..., etc.
+    std::vector<GLuint> textureArrays;
+
+    // Just a layer + index for the texture per draw command
+    std::vector<TextureLocation> materials;
+} GLMDIBuffers;
+
+// openglCallbackFunction function from
+// https://blog.nobel-joergensen.com/2013/02/17/debugging-opengl-part-2-using-gldebugmessagecallback/
 void APIENTRY openglCallbackFunction(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
     cout << "[";
     switch (severity) {
@@ -303,6 +300,8 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
         }
     }
 
+    std::map<string, int> meshLocations;
+
     std::map<std::string, tinygltf::Mesh>::const_iterator itMesh(scene.meshes.begin());
     std::map<std::string, tinygltf::Mesh>::const_iterator itMeshEnd(scene.meshes.end());
 
@@ -368,13 +367,22 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
                 cout << "Error: expected unsigned int indices for mesh " << mesh.name << endl;
             }
 
-            cout << mesh.name << " is OK " << posAccessor.bufferView << " " << viewsCommands[posAccessor.bufferView] << endl;
+            cout << mesh.name << " is OK with bufferView " << posAccessor.bufferView;
+            cout << " " << viewsCommands[posAccessor.bufferView] << endl;
 
-            DrawElementsIndirectCommand &command = commands.at(viewsCommands[posAccessor.bufferView]);
+            const int commandIndex = viewsCommands[posAccessor.bufferView];
+
+            // Fill in the last remaining components of the draw command
+            DrawElementsIndirectCommand &command = commands.at(commandIndex);
             command.firstIndex = viewsIndices[indexAccessor.bufferView];
             command.count = indexAccessor.count;
+
+            // Store mapping of mesh name to its location in the command array
+            meshLocations.insert(std::pair<string, int>(mesh.name, commandIndex));
         }
     }
+
+    mdiBuffers.meshCommands = meshLocations;
 
     // Debug: print commands
 
@@ -384,7 +392,9 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     for (; itCommand != itCommandEnd; itCommand++) {
         const DrawElementsIndirectCommand &command = *itCommand;
 
-        cout << "count: " << command.count << " instanceCount: " << command.instanceCount << " firstIndex: " << command.firstIndex << " baseVertex: " << command.baseVertex << " baseInstance: " << command.baseInstance << endl;
+        cout << "count: " << command.count << " instanceCount: " << command.instanceCount;
+        cout << " firstIndex: " << command.firstIndex << " baseVertex: " << command.baseVertex;
+        cout << " baseInstance: " << command.baseInstance << endl;
     }
 
     // Copy commands to CBO
@@ -398,31 +408,185 @@ static void loadMesh(tinygltf::Scene &scene, GLuint progId, GLMDIBuffers &mdiBuf
     glNamedBufferSubData(mdiBuffers.dbo, 0, instances.size() * sizeof(unsigned int), &instances.at(0));
 }
 
-void loadTexture(GLuint shaderProgram)
+void loadTexture(tinygltf::Scene &scene, GLuint shaderProgram, GLMDIBuffers &mdiBuffers)
 {
-    float pixels[] = {
-        0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,
-        1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,
-        0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,
-        1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f
-    };
+    cout << "==================================================" << endl;
+    std::map<std::string, tinygltf::Texture>::const_iterator it(scene.textures.begin());
+    std::map<std::string, tinygltf::Texture>::const_iterator itEnd(scene.textures.end());
 
-    GLuint texture;
-    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &texture);
+    // Create multiple texture arrays (one for each size -- 1024, 2048, etc.)
+    std::map<unsigned int, std::vector<std::pair<string, tinygltf::Texture>>> textureArrays;
 
-    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    cout << "#textures: " << scene.textures.size() << endl;
 
-    const auto depth = 1;
-    glTextureStorage3D(texture, 1, GL_RGBA8, 4, 4, depth);
-    glTextureSubImage3D(texture, 0, 0, 0, 0, 4, 4, depth, GL_RGB, GL_FLOAT, pixels);
+    for (; it != itEnd; it++) {
+        const string name = it->first;
+        const tinygltf::Texture &tex = it->second;
 
-    GLint uniTexture = glGetUniformLocation(shaderProgram, "diffuseTexture");
-    glProgramUniform1i(shaderProgram, uniTexture, texture);
+        if (scene.images.find(tex.source) != scene.images.end()) {
+            tinygltf::Image &image = scene.images[tex.source];
 
-    glBindTextureUnit(0, texture);
+            cout << "Texture: " << name << endl;
+            cout << "    w: " << image.width << " h: " << image.height << " comp: " << image.component << endl;
+            cout << "    target: " << tex.target << " type: " << tex.type << " format: " << tex.format;
+            cout << " internalFormat: " << tex.internalFormat << endl;
+
+            if (image.width != image.height) {
+                cout << "Error: image " << tex.source << " not square" << endl;
+                continue;
+            }
+
+            if (image.width == 0.0 || image.height == 0.0) {
+                cout << "Error: image " << tex.source << " empty" << endl;
+                continue;
+            }
+
+            float p = log2(image.width);
+            if (int(p) != p) {
+                cout << "Error: image " << tex.source << " not a power of 2" << endl;
+                continue;
+            }
+
+            if (!textureArrays.count(image.width)) {
+                std::vector<std::pair<string, tinygltf::Texture>> v;
+                textureArrays[image.width] = v;
+            }
+
+            textureArrays[image.width].push_back(std::pair<string, tinygltf::Texture>(name, tex));
+        }
+    }
+
+    cout << "Amount of different texture sizes: " << textureArrays.size() << endl;
+
+    std::map<unsigned int, std::vector<std::pair<string, tinygltf::Texture>>>::const_iterator it2(textureArrays.begin());
+    std::map<unsigned int, std::vector<std::pair<string, tinygltf::Texture>>>::const_iterator it2End(textureArrays.end());
+
+    // Map the texture name to a pair (layer, index)
+    std::map<string, TextureLocation> textureLocations;
+
+    int layer = 0;
+
+    // Maintain a list of the GLuint's of the texture arrays
+    std::vector<GLuint> arrayIds;
+
+    cout << "--------------------------------------------------" << endl;
+    for (; it2 != it2End; it2++) {
+        const unsigned int size = it2->first;
+        const std::vector<std::pair<string, tinygltf::Texture>> &textures = it2->second;
+
+        unsigned int depth = textures.size();
+        cout << "Texture array at layer " << layer << " for size " << size << " has " << depth << " textures" << endl;
+
+        // Create the texture array here
+        GLuint textureArray;
+        glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &textureArray);
+
+        // Store the GLuint in a vector
+        arrayIds.push_back(textureArray);
+
+        glTextureParameteri(textureArray, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(textureArray, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(textureArray, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(textureArray, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        // Allocate storage for the whole array
+        glTextureStorage3D(textureArray, 1, GL_RGBA8, size, size, depth);
+        cout << "    Allocated storage for texture array " << textureArray << " size: " << size << " depth: " << depth << endl;
+
+        std::vector<std::pair<string, tinygltf::Texture>>::const_iterator it3(textures.begin());
+        std::vector<std::pair<string, tinygltf::Texture>>::const_iterator it3End(textures.end());
+
+        int index = 0;
+
+        // Fill in the slots (the individual textures) in the array
+        for (; it3 != it3End; it3++) {
+            const string name = it3->first;
+            tinygltf::Texture texture = it3->second;
+
+            tinygltf::Image &image = scene.images[texture.source];
+            glTextureSubImage3D(textureArray, 0, 0, 0, index, size, size, 1, texture.format, texture.type, &image.image.at(0));
+
+            // Create and store map from name to texture location (layer + index)
+            cout << "    storing " << name << " in layer: " << layer << " index: " << index << endl;
+            textureLocations.insert(std::pair<string, TextureLocation>(name, TextureLocation(layer, index)));
+
+            index++;
+        }
+
+        layer++;
+        cout << "--------------------------------------------------" << endl;
+    }
+
+    mdiBuffers.textureArrays = arrayIds;
+
+    // textureLocations contains mapping of texture name to its location
+    // (layer (texture array binding point) + index in texture array)
+    //
+    // Now we have to store those texture locations at the position in
+    // mdiBuffers.materials as the position of the draw command that needs it
+    //
+    // Use mdiBuffers.meshCommands to retrieve the draw ID (position in command array)
+
+    std::vector<TextureLocation> materials(mdiBuffers.count, TextureLocation(0, 0));
+
+    std::map<std::string, tinygltf::Mesh>::const_iterator itMesh(scene.meshes.begin());
+    std::map<std::string, tinygltf::Mesh>::const_iterator itMeshEnd(scene.meshes.end());
+
+    for (; itMesh != itMeshEnd; itMesh++) {
+        const tinygltf::Mesh &mesh = itMesh->second;
+
+        if (mesh.primitives.size() != 1) {
+            // We expect 1 primitive for simplicity
+            // If a mesh has multiple primitives, then you need to disable
+            // the non-active UV's in Blender
+            cout << "Error: expected 1 primitive for mesh " << mesh.name << endl;
+        }
+
+        for (size_t primId = 0; primId < mesh.primitives.size(); primId++) {
+            const tinygltf::Primitive &primitive = mesh.primitives[primId];
+            tinygltf::Material &material = scene.materials[primitive.material];
+
+            if (material.values.find("diffuse") == material.values.end()) {
+                cout << "Error: mesh " << mesh.name << " doesn't have a diffuse texture :S | material: " << material.name << endl;
+            }
+
+            const std::string textureName = material.values["diffuse"].string_value;
+            const int drawID = mdiBuffers.meshCommands[mesh.name];
+            const TextureLocation location = textureLocations[textureName];
+            cout << "Mesh " << mesh.name << " at " << drawID <<" uses texture '" << textureName << "'" << endl;
+            cout << "  which is at layer " << location.first << " at index " << location.second << endl;
+            materials.at(drawID) = location;
+        }
+    }
+
+    mdiBuffers.materials = materials;
+
+    // Basic 4x4 checkerboard
+//    float pixels[] = {
+//        0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,
+//        1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,
+//        0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,
+//        1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f,   1.0f, 1.0f, 1.0f,   0.1f, 0.1f, 0.1f
+//    };
+    cout << "==================================================" << endl;
+}
+
+void bindTextureArrays(GLMDIBuffers &mdiBuffers)
+{
+    std::vector<GLuint>::const_iterator it(mdiBuffers.textureArrays.begin());
+    std::vector<GLuint>::const_iterator itEnd(mdiBuffers.textureArrays.end());
+
+    int layer = 0;
+
+    for (; it != itEnd; it++) {
+        GLuint textureArray = *it;
+
+        // Bind the texture arrays
+        cout << "Binding texture array " << textureArray << " to binding point " << layer << endl;
+        glBindTextureUnit(layer, textureArray);
+
+        layer++;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,9 +662,7 @@ double mouse_scroll_y = 2.0;
 
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    cout << "scroll x: " << xoffset << " y: " << yoffset << endl;
     mouse_scroll_y = std::max(2.0, mouse_scroll_y - yoffset / 2);
-    cout << mouse_scroll_y << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -630,17 +792,20 @@ int main(int argc, char *argv[])
     loadMesh(scene, shaderProgram, mdiBuffers);
     auto t_b_end = std::chrono::high_resolution_clock::now();
 
+    //////////////////////////////////////////////////////////////////////
+
+    auto t_c_start = std::chrono::high_resolution_clock::now();
+    loadTexture(scene, shaderProgram, mdiBuffers);
+    auto t_c_end = std::chrono::high_resolution_clock::now();
+
+    //////////////////////////////////////////////////////////////////////
+
     float t_a = std::chrono::duration_cast<std::chrono::duration<float>>(t_a_end - t_a_start).count() * 1000.0;
     cout << "Mesh .gltf parse time: " << t_a << " ms" << endl;
-
     float t_b = std::chrono::duration_cast<std::chrono::duration<float>>(t_b_end - t_b_start).count() * 1000.0;
     cout << "Mesh loading time: " << t_b << " ms" << endl;
-
-    //////////////////////////////////////////////////////////////////////
-
-    loadTexture(shaderProgram);
-
-    //////////////////////////////////////////////////////////////////////
+    float t_c = std::chrono::duration_cast<std::chrono::duration<float>>(t_c_end - t_c_start).count() * 1000.0;
+    cout << "Textures loading time: " << t_c << " ms" << endl;
 
     // Specify vertex format
     glBindVertexArray(vao);
@@ -652,9 +817,16 @@ int main(int argc, char *argv[])
     GLint uniView = glGetUniformLocation(shaderProgram, "view");
     GLint uniProj = glGetUniformLocation(shaderProgram, "proj");
 
+    // Texture arrays bindings points (limited to arbitrary amount of 8 in fragment shader)
+    GLint uniTexture = glGetUniformLocation(shaderProgram, "diffuseTextures");
+    GLint textureArraysBindingsPoints[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    glProgramUniform1iv(shaderProgram, uniTexture, 8, textureArraysBindingsPoints);
+
     auto t_start = std::chrono::high_resolution_clock::now();
 
     // START BIND
+        bindTextureArrays(mdiBuffers);
+
         // Bind vertex and index buffers
         glVertexArrayVertexBuffer(vao, 0, mdiBuffers.vbo, 0, 8*sizeof(float));
         glVertexArrayVertexBuffer(vao, 1, mdiBuffers.dbo, 0, 1*sizeof(int));
